@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useApp, useInput, useFocusManager, useStdout } from 'ink';
+import { Box, Text, useApp, useInput, useStdout } from 'ink';
 
 import {
   loadAllFolders,
@@ -60,7 +60,6 @@ function Footer({ focus }) {
 
 export default function App() {
   const { exit } = useApp();
-  const { focusNext, focusPrevious } = useFocusManager();
   const { stdout } = useStdout();
 
   const termHeight = stdout?.rows ?? 40;
@@ -113,14 +112,11 @@ export default function App() {
     if (input === '?') { setModal('help'); return; }
     if (input === 'r') { refresh(); notify('Reloaded from disk'); return; }
 
-    if (key.tab && !key.shift) {
-      focusNext();
-      // Track current focus for footer (approximate via cycling)
+    if ((key.tab && !key.shift) || input === 'l') {
       setFocus(f => f === 'folders' ? 'types' : f === 'types' ? 'items' : 'folders');
       return;
     }
-    if (key.shift && key.tab) {
-      focusPrevious();
+    if ((key.shift && key.tab) || input === 'h') {
       setFocus(f => f === 'folders' ? 'items' : f === 'items' ? 'types' : 'folders');
       return;
     }
@@ -324,6 +320,7 @@ export default function App() {
             setFocus('folders');
           }}
           height={contentHeight}
+          isFocused={focus === 'folders'}
         />
 
         {/* Right: Type + Items */}
@@ -338,6 +335,7 @@ export default function App() {
               setFocus('types');
             }}
             height={typesPanelH}
+            isFocused={focus === 'types'}
           />
           <ItemsPanel
             itype={currentType}
@@ -348,6 +346,7 @@ export default function App() {
             }}
             selectedUuids={selectedUuids}
             height={itemsPanelH}
+            isFocused={focus === 'items'}
           />
         </Box>
       </Box>

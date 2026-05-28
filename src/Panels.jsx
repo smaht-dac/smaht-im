@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Box, Text, useFocus, useInput } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { INSERT_PREFIX } from './core.js';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -24,12 +24,11 @@ function trunc(str, maxLen) {
 
 // ── FolderPanel ───────────────────────────────────────────────────────────────
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height }) {
-  const { isFocused } = useFocus({ id: 'folders' });
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused }) {
 
   useInput((input, key) => {
-    if (key.upArrow)   onSelect(Math.max(0, selectedIdx - 1));
-    if (key.downArrow) onSelect(Math.min(folders.length - 1, selectedIdx + 1));
+    if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
+    if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   }, { isActive: isFocused });
 
   const innerHeight = Math.max(1, height - 2); // subtract border rows
@@ -85,13 +84,12 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height }) {
 
 // ── TypePanel ─────────────────────────────────────────────────────────────────
 
-export function TypePanel({ folder, selectedIdx, onSelect, height }) {
-  const { isFocused } = useFocus({ id: 'types' });
+export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) {
   const types = folder?.types ?? [];
 
   useInput((input, key) => {
-    if (key.upArrow)   onSelect(Math.max(0, selectedIdx - 1));
-    if (key.downArrow) onSelect(Math.min(types.length - 1, selectedIdx + 1));
+    if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
+    if (key.downArrow || input === 'j') onSelect(Math.min(types.length - 1, selectedIdx + 1));
   }, { isActive: isFocused });
 
   const innerHeight = Math.max(1, height - 2);
@@ -151,13 +149,13 @@ export function ItemsPanel({
   onSelect,
   selectedUuids,
   height,
+  isFocused,
 }) {
-  const { isFocused } = useFocus({ id: 'items' });
   const items = itype?.items ?? [];
 
   useInput((input, key) => {
-    if (key.upArrow)   onSelect(Math.max(0, selectedIdx - 1));
-    if (key.downArrow) onSelect(Math.min(items.length - 1, selectedIdx + 1));
+    if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
+    if (key.downArrow || input === 'j') onSelect(Math.min(items.length - 1, selectedIdx + 1));
   }, { isActive: isFocused });
 
   const innerHeight = Math.max(1, height - 3); // title + header row + border
