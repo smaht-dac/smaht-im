@@ -1,7 +1,14 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# OS / editor
 .DS_Store
 .env
-dist/
-build/
+*.swp
+*.swo
