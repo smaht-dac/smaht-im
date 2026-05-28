@@ -31,12 +31,23 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   }, { isActive: isFocused });
 
+  // Dynamic width: fit longest short name, capped at 100
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count suffix(8) = 16
+  const longestShortName = folders.reduce((max, f) => {
+    const n = f.isActive
+      ? f.name
+      : f.name.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
+    return Math.max(max, n.length);
+  }, 0);
+  const panelWidth = Math.min(100, Math.max(24, longestShortName + 16));
+  const nameWidth  = panelWidth - 16;
+
   const innerHeight = Math.max(1, height - 2); // subtract border rows
   const { slice, offset } = visibleWindow(folders, selectedIdx, innerHeight);
 
   return (
     <Box
-      width={30}
+      width={panelWidth}
       height={height}
       flexDirection="column"
       borderStyle="single"
@@ -56,7 +67,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
         const isSelected = realIdx === selectedIdx;
         const shortName = folder.isActive
           ? folder.name
-          : folder.name.slice(INSERT_PREFIX.length); // show only suffix
+          : folder.name.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
 
         return (
           <Box key={folder.name} paddingX={1}>
@@ -72,7 +83,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
             >
               {isSelected ? '▶ ' : '  '}
               {folder.isActive ? '● ' : '  '}
-              {trunc(shortName, 22)}
+              {trunc(shortName, nameWidth)}
             </Text>
             <Text color="gray"> [{folder.totalItems}]</Text>
           </Box>

@@ -160,8 +160,8 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
 
   useInput((input, key) => {
     if (key.escape || input === 'n') { onCancel(); return; }
-    if (key.upArrow)   setDstIdx(i => Math.max(0, i - 1));
-    if (key.downArrow) setDstIdx(i => Math.min(destinations.length - 1, i + 1));
+    if (key.upArrow   || input === 'k') setDstIdx(i => Math.max(0, i - 1));
+    if (key.downArrow || input === 'j') setDstIdx(i => Math.min(destinations.length - 1, i + 1));
     if (key.return || input === 'm') {
       if (destinations[dstIdx]) onConfirm(destinations[dstIdx].name);
     }
@@ -190,7 +190,7 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
       )}
 
       <Box height={1} />
-      <Text color="yellow">Destination folder  (↑/↓ to choose, Enter to move):</Text>
+      <Text color="yellow">Destination folder  (↑↓ / jk to choose, Enter to move):</Text>
 
       {visible.map((f, i) => (
         <Box key={f.name} paddingLeft={2}>
@@ -281,9 +281,9 @@ export function DiffModal({ nameA, nameB, diff, onClose }) {
 
 const HELP_ROWS = [
   ['Navigation', ''],
-  ['  ↑ / ↓', 'Move within the focused panel'],
-  ['  Tab', 'Move focus: Folders → Types → Items'],
-  ['  Shift+Tab', 'Move focus in reverse'],
+  ['  ↑↓ / jk', 'Move within the focused panel'],
+  ['  Tab / l', 'Move focus: Folders → Types → Items'],
+  ['  Shift+Tab / h', 'Move focus in reverse'],
   ['', ''],
   ['Folder panel (left)', ''],
   ['  a', 'Activate selected folder (replaces temp-local-inserts)'],
