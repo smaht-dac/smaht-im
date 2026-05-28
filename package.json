@@ -10,8 +10,8 @@
     "imc": "./bin/imc.js"
   },
   "scripts": {
-    "build": "esbuild src/index.jsx --bundle --packages=external --platform=node --outfile=dist/imc.js",
-    "watch": "esbuild src/index.jsx --bundle --packages=external --platform=node --outfile=dist/imc.js --watch",
+    "build": "esbuild src/index.jsx --bundle --packages=external --platform=node --format=esm --outfile=dist/imc.js",
+    "watch": "esbuild src/index.jsx --bundle --packages=external --platform=node --format=esm --outfile=dist/imc.js --watch",
     "start": "node dist/imc.js",
     "dev": "npm run build && node dist/imc.js"
   },
