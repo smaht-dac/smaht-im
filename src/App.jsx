@@ -232,9 +232,10 @@ export default function App() {
   // ── layout math ───────────────────────────────────────────────────────────
 
   // 1 header (from ink's render) + 1 footer bar + 1 notification bar
-  const footerHeight = 3;       // bordered footer
+  const appHeight    = termHeight - 1; // stay below stdout.rows so Ink uses eraseLines not clearTerminal
+  const footerHeight = 3;
   const notifHeight  = notification ? 1 : 0;
-  const contentHeight = Math.max(8, termHeight - footerHeight - notifHeight);
+  const contentHeight = Math.max(8, appHeight - footerHeight - notifHeight);
 
   const typesPanelH  = Math.floor(contentHeight * 0.35);
   const itemsPanelH  = contentHeight - typesPanelH;
@@ -249,7 +250,7 @@ export default function App() {
     const selectedItemObjs = currentItems.filter(i => selectedUuids.has(i.uuid));
 
     return (
-      <Box height={termHeight} flexDirection="column" justifyContent="center" alignItems="center">
+      <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
         {modal === 'activate' && (
           <ActivateModal
             target={currentFolder}
@@ -300,7 +301,7 @@ export default function App() {
   // ── main layout ───────────────────────────────────────────────────────────
 
   return (
-    <Box height={termHeight} flexDirection="column">
+    <Box height={appHeight} flexDirection="column">
       {/* Notification banner */}
       {notification && (
         <NotificationBar message={notification.msg} isError={notification.isError} />

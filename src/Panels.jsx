@@ -27,9 +27,10 @@ function trunc(str, maxLen) {
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused }) {
 
   useInput((input, key) => {
+    if (!isFocused) return;
     if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
-  }, { isActive: isFocused });
+  });
 
   // Dynamic width: fit longest short name, capped at 100
   // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count suffix(8) = 16
@@ -99,9 +100,10 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
   const types = folder?.types ?? [];
 
   useInput((input, key) => {
+    if (!isFocused) return;
     if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
     if (key.downArrow || input === 'j') onSelect(Math.min(types.length - 1, selectedIdx + 1));
-  }, { isActive: isFocused });
+  });
 
   const innerHeight = Math.max(1, height - 2);
   const { slice, offset } = visibleWindow(types, selectedIdx, innerHeight);
@@ -165,9 +167,10 @@ export function ItemsPanel({
   const items = itype?.items ?? [];
 
   useInput((input, key) => {
+    if (!isFocused) return;
     if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
     if (key.downArrow || input === 'j') onSelect(Math.min(items.length - 1, selectedIdx + 1));
-  }, { isActive: isFocused });
+  });
 
   const innerHeight = Math.max(1, height - 3); // title + header row + border
   const { slice, offset } = visibleWindow(items, selectedIdx, innerHeight);
