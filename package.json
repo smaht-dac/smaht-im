@@ -13,7 +13,7 @@
     "build": "esbuild src/index.jsx --bundle --packages=external --platform=node --format=esm --outfile=dist/imc.js",
     "watch": "esbuild src/index.jsx --bundle --packages=external --platform=node --format=esm --outfile=dist/imc.js --watch",
     "start": "node dist/imc.js",
-    "dev": "npm run build && node dist/imc.js"
+    "dev": "npm run build && esbuild src/index.jsx --bundle --packages=external --platform=node --format=esm --outfile=dist/imc.js --watch >/dev/null 2>&1 & ESBUILD_PID=$! && node --watch-path=dist dist/imc.js; kill $ESBUILD_PID 2>/dev/null"
   },
   "dependencies": {
     "ink": "^5.0.1",
