@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import { INSERT_PREFIX } from './core.js';
+import { INSERT_PREFIX, branchName } from './core.js';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,6 +22,15 @@ function trunc(str, maxLen) {
   return str.slice(0, maxLen - 1) + '…';
 }
 
+/** Format a Date as YYYY-MM-DD in local time, or '—' if null. */
+function fmtDate(d) {
+  if (!d) return '—';
+  const y  = d.getFullYear();
+  const m  = String(d.getMonth() + 1).padStart(2, '0');
+  const dy = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dy}`;
+}
+
 // ── FolderPanel ───────────────────────────────────────────────────────────────
 
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused }) {
@@ -32,16 +41,13 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   });
 
-  // Dynamic width: fit longest short name, capped at 100
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count suffix(8) = 16
-  const longestShortName = folders.reduce((max, f) => {
-    const n = f.isActive
-      ? f.name
-      : f.name.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
-    return Math.max(max, n.length);
-  }, 0);
-  const panelWidth = Math.min(100, Math.max(24, longestShortName + 16));
-  const nameWidth  = panelWidth - 16;
+  // Dynamic width: fit longest branch name + date column, capped at 100
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + date(12) = 28
+  const DATE_W    = 12; // "  YYYY-MM-DD"
+  const overhead  = 16 + DATE_W;
+  const longestShortName = folders.reduce((max, f) => Math.max(max, branchName(f.name).length), 0);
+  const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
+  const nameWidth  = panelWidth - overhead;
 
   const innerHeight = Math.max(1, height - 2); // subtract border rows
   const { slice, offset } = visibleWindow(folders, selectedIdx, innerHeight);
@@ -57,7 +63,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
       {/* Title bar */}
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'green' : 'white'}>
-          {' Folders '}
+          {' Branches '}
         </Text>
         <Text color="gray">({folders.length})</Text>
       </Box>
@@ -66,9 +72,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
       {slice.map((folder, i) => {
         const realIdx = i + offset;
         const isSelected = realIdx === selectedIdx;
-        const shortName = folder.isActive
-          ? folder.name
-          : folder.name.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
+        const shortName = branchName(folder.name);
 
         return (
           <Box key={folder.name} paddingX={1}>
@@ -87,9 +91,42 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
               {trunc(shortName, nameWidth)}
             </Text>
             <Text color="gray"> [{folder.totalItems}]</Text>
+            <Text color="gray">  {fmtDate(folder.lastUpdated)}</Text>
           </Box>
         );
       })}
+    </Box>
+  );
+}
+
+// ── OverviewPanel ─────────────────────────────────────────────────────────────
+
+export function OverviewPanel({ folder, height }) {
+  const label       = folder ? branchName(folder.name) : null;
+  const lastUpdated = fmtDate(folder?.lastUpdated ?? null);
+  const items       = folder ? String(folder.totalItems) : '—';
+
+  return (
+    <Box
+      height={height}
+      flexDirection="column"
+      borderStyle="single"
+      borderColor="gray"
+    >
+      <Box paddingX={1}>
+        <Text bold color="white"> Overview </Text>
+        {label && <Text color="gray">{label}</Text>}
+      </Box>
+      <Box paddingX={2} gap={4}>
+        <Box>
+          <Text color="gray">{'Last pulled  '}</Text>
+          <Text color={folder ? 'white' : 'gray'}>{lastUpdated}</Text>
+        </Box>
+        <Box>
+          <Text color="gray">{'Items  '}</Text>
+          <Text color={folder ? 'white' : 'gray'}>{items}</Text>
+        </Box>
+      </Box>
     </Box>
   );
 }

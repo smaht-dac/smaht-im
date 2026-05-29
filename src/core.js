@@ -22,6 +22,23 @@ export const ACTIVE_FOLDER = 'temp-local-inserts';
 export const INSERT_PREFIX = 'temp-local-inserts';
 
 const HISTORY_FILE = path.join(os.homedir(), '.smaht-im', 'activation-history.json');
+const HEAD_FILE     = path.join(os.homedir(), '.smaht-im', 'HEAD');
+
+/** Strip the common prefix to get the human-readable branch name. */
+export function branchName(fullName) {
+  return fullName.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
+}
+
+/** Returns the currently checked-out branch's full folder name, or null. */
+export function getActiveBranch() {
+  try { return fs.readFileSync(HEAD_FILE, 'utf8').trim() || null; }
+  catch { return null; }
+}
+
+function setActiveBranch(name) {
+  fs.mkdirSync(path.dirname(HEAD_FILE), { recursive: true });
+  fs.writeFileSync(HEAD_FILE, name);
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,69 +102,92 @@ export function loadFolder(folderName) {
   }
 
   const totalItems = types.reduce((sum, t) => sum + t.count, 0);
-  return { name: folderName, path: folderPath, types, totalItems, isActive: folderName === ACTIVE_FOLDER };
+
+  // Most-recent mtime across all JSON files — reflects the last pull or TUI write
+  let lastUpdated = null;
+  for (const file of files) {
+    try {
+      const mtime = fs.statSync(path.join(folderPath, file)).mtime;
+      if (!lastUpdated || mtime > lastUpdated) lastUpdated = mtime;
+    } catch { /* ignore */ }
+  }
+
+  return { name: folderName, path: folderPath, types, totalItems, isActive: false, lastUpdated };
 }
 
 /**
- * Load all temp-local-inserts* directories. Active folder is always first.
+ * Load all named branches (excludes the working copy temp-local-inserts).
+ * On first run, bootstraps a 'main' branch from the working copy.
+ * The checked-out branch (from HEAD) is always first; others are sorted.
  */
 export function loadAllFolders() {
   if (!fs.existsSync(INSERTS_BASE)) return [];
 
   const entries = fs.readdirSync(INSERTS_BASE, { withFileTypes: true });
-  const names = entries
-    .filter(e => e.isDirectory() && e.name.startsWith(INSERT_PREFIX))
+  let names = entries
+    .filter(e => e.isDirectory() && e.name.startsWith(INSERT_PREFIX) && e.name !== ACTIVE_FOLDER)
     .map(e => e.name)
     .sort();
 
-  const folders = names.map(loadFolder).filter(Boolean);
-  const active = folders.filter(f => f.isActive);
-  const others = folders.filter(f => !f.isActive);
-  return [...active, ...others];
+  // Bootstrap: no branches yet — create 'main' from the working copy
+  if (names.length === 0) {
+    const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+    if (fs.existsSync(activePath)) {
+      const mainName = `${INSERT_PREFIX}-main`;
+      fs.cpSync(activePath, path.join(INSERTS_BASE, mainName), { recursive: true });
+      names = [mainName];
+    }
+  }
+
+  // Resolve HEAD; fall back to first branch if HEAD is missing or stale
+  let active = getActiveBranch();
+  if (!active || !names.includes(active)) {
+    active = names[0] ?? null;
+    if (active) setActiveBranch(active);
+  }
+
+  const folders = names.map(n => {
+    const f = loadFolder(n);
+    return f ? { ...f, isActive: n === active } : null;
+  }).filter(Boolean);
+
+  return [
+    ...folders.filter(f => f.isActive),
+    ...folders.filter(f => !f.isActive),
+  ];
 }
 
-// ── activate ──────────────────────────────────────────────────────────────────
+// ── checkout ──────────────────────────────────────────────────────────────────
 
 /**
- * Replace temp-local-inserts contents with target folder contents.
- * Optionally saves the current active state as a named snapshot first.
+ * Checkout a branch: copy its contents into the working copy (temp-local-inserts)
+ * and update HEAD. The previously active branch is left untouched in its folder.
  * Returns a status string on success; throws on failure.
  */
-export function activateFolder(targetName, saveCurrentAs) {
-  if (targetName === ACTIVE_FOLDER) return 'Already the active folder.';
+export function checkoutBranch(targetName) {
+  const currentBranch = getActiveBranch();
+  if (targetName === currentBranch) return `Already on '${branchName(targetName)}'.`;
+  if (targetName === ACTIVE_FOLDER) throw new Error('Cannot checkout the working copy directly');
+  if (!targetName.startsWith(INSERT_PREFIX)) throw new Error(`'${targetName}' is not a valid branch`);
 
   const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
   const targetPath = path.join(INSERTS_BASE, targetName);
 
-  if (!fs.existsSync(targetPath)) throw new Error(`Folder '${targetName}' not found`);
-  if (!targetName.startsWith(INSERT_PREFIX)) throw new Error(`Refusing to activate '${targetName}': not a temp-local-inserts folder`);
+  if (!fs.existsSync(targetPath)) throw new Error(`Branch '${branchName(targetName)}' not found`);
 
+  // Clear working copy and replace with target branch content
   fs.mkdirSync(activePath, { recursive: true });
-
-  if (saveCurrentAs) {
-    const slug = safeSlug(saveCurrentAs);
-    if (!slug) throw new Error('Snapshot name is invalid');
-    const snapName = `${INSERT_PREFIX}-${slug}`;
-    const snapPath = path.join(INSERTS_BASE, snapName);
-    if (fs.existsSync(snapPath)) throw new Error(`Folder '${snapName}' already exists`);
-    fs.cpSync(activePath, snapPath, { recursive: true });
-  }
-
-  // Clear active and copy from target
   for (const f of fs.readdirSync(activePath).filter(n => n.endsWith('.json'))) {
     fs.unlinkSync(path.join(activePath, f));
   }
-  let copied = 0;
   for (const f of fs.readdirSync(targetPath).filter(n => n.endsWith('.json'))) {
     fs.copyFileSync(path.join(targetPath, f), path.join(activePath, f));
-    copied++;
   }
 
-  _recordHistory(ACTIVE_FOLDER, targetName);
+  setActiveBranch(targetName);
+  _recordHistory(currentBranch ?? ACTIVE_FOLDER, targetName);
 
-  let msg = `Activated '${targetName}' (${copied} file${copied !== 1 ? 's' : ''})`;
-  if (saveCurrentAs) msg += ` — previous state saved as '${INSERT_PREFIX}-${safeSlug(saveCurrentAs)}'`;
-  return msg;
+  return `Switched to '${branchName(targetName)}'`;
 }
 
 // ── snapshot ──────────────────────────────────────────────────────────────────
@@ -176,8 +216,9 @@ export function createSnapshot(name) {
  * Permanently delete a named inserts folder (never the active one).
  */
 export function deleteFolder(folderName) {
-  if (folderName === ACTIVE_FOLDER) throw new Error('Cannot delete the active folder');
-  if (!folderName.startsWith(INSERT_PREFIX)) throw new Error(`Refusing: '${folderName}' is not a temp-local-inserts folder`);
+  if (folderName === ACTIVE_FOLDER) throw new Error('Cannot delete the working copy');
+  if (folderName === getActiveBranch()) throw new Error('Cannot delete the active branch — checkout another branch first');
+  if (!folderName.startsWith(INSERT_PREFIX)) throw new Error(`Refusing: '${folderName}' is not a valid branch`);
   const folderPath = path.join(INSERTS_BASE, folderName);
   if (!fs.existsSync(folderPath)) throw new Error(`Folder '${folderName}' does not exist`);
   fs.rmSync(folderPath, { recursive: true, force: true });

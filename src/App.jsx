@@ -7,17 +7,18 @@ import { Box, Text, useApp, useInput, useStdout } from 'ink';
 
 import {
   loadAllFolders,
-  activateFolder,
+  checkoutBranch,
   createSnapshot,
   deleteFolder,
   moveItems,
   computeDiff,
   ACTIVE_FOLDER,
+  branchName,
 } from './core.js';
 
-import { FolderPanel, TypePanel, ItemsPanel } from './Panels.jsx';
+import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel } from './Panels.jsx';
 import {
-  ActivateModal,
+  CheckoutModal,
   SnapshotModal,
   DeleteModal,
   MoveModal,
@@ -30,7 +31,7 @@ import {
 
 function Footer({ focus }) {
   const actions = [
-    { key: 'a', desc: 'Activate', active: focus === 'folders' },
+    { key: 'a', desc: 'Checkout', active: focus === 'folders' },
     { key: 'n', desc: 'Snap',     active: true },
     { key: 'm', desc: 'Move',     active: focus === 'items' },
     { key: 'd', desc: 'Diff',     active: focus === 'folders' },
@@ -121,17 +122,17 @@ export default function App() {
       return;
     }
 
-    // Folder panel actions
+    // Branch panel actions
     if (input === 'a') {
-      if (!currentFolder) { notify('No folder selected', true); return; }
-      if (currentFolder.isActive) { notify('Already the active folder'); return; }
-      setModal('activate');
+      if (!currentFolder) { notify('No branch selected', true); return; }
+      if (currentFolder.isActive) { notify('Already on this branch'); return; }
+      setModal('checkout');
       return;
     }
     if (input === 'n') { setModal('snapshot'); return; }
     if (input === 'd') {
       if (!currentFolder || currentFolder.isActive) {
-        notify('Select a non-active folder to diff', true);
+        notify('Select a non-active branch to diff', true);
         return;
       }
       setModal('diff');
@@ -139,7 +140,7 @@ export default function App() {
     }
     if (key.delete || key.backspace) {
       if (!currentFolder || currentFolder.isActive) {
-        notify('Cannot delete the active folder', true);
+        notify('Cannot delete the active branch', true);
         return;
       }
       setModal('delete');
@@ -178,13 +179,14 @@ export default function App() {
 
   // ── modal callbacks ───────────────────────────────────────────────────────
 
-  const handleActivate = (saveAs) => {
+  const handleCheckout = () => {
     setModal(null);
     try {
-      const msg = activateFolder(currentFolder.name, saveAs);
+      const msg = checkoutBranch(currentFolder.name);
       notify(msg);
-      setFolderIdx(0); // active folder is always first after reload
+      setFolderIdx(0); // active branch is always first
       setTypeIdx(0);
+      setItemIdx(0);
       setSelected(new Set());
       refresh();
     } catch (e) {
@@ -237,8 +239,10 @@ export default function App() {
   const notifHeight  = notification ? 1 : 0;
   const contentHeight = Math.max(8, appHeight - footerHeight - notifHeight);
 
-  const typesPanelH  = Math.floor(contentHeight * 0.35);
-  const itemsPanelH  = contentHeight - typesPanelH;
+  const overviewH    = 4;
+  const remainingH   = contentHeight - overviewH;
+  const typesPanelH  = Math.floor(remainingH * 0.35);
+  const itemsPanelH  = remainingH - typesPanelH;
 
   // ── modal rendering ───────────────────────────────────────────────────────
 
@@ -251,11 +255,11 @@ export default function App() {
 
     return (
       <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
-        {modal === 'activate' && (
-          <ActivateModal
+        {modal === 'checkout' && (
+          <CheckoutModal
             target={currentFolder}
             current={activeFolder}
-            onConfirm={handleActivate}
+            onConfirm={handleCheckout}
             onCancel={() => setModal(null)}
           />
         )}
@@ -285,8 +289,8 @@ export default function App() {
         )}
         {modal === 'diff' && diff && (
           <DiffModal
-            nameA={ACTIVE_FOLDER}
-            nameB={currentFolder?.name}
+            nameA={activeFolder ? branchName(activeFolder.name) : 'current'}
+            nameB={currentFolder ? branchName(currentFolder.name) : ''}
             diff={diff}
             onClose={() => setModal(null)}
           />
@@ -324,8 +328,12 @@ export default function App() {
           isFocused={focus === 'folders'}
         />
 
-        {/* Right: Type + Items */}
+        {/* Right: Overview + Type + Items */}
         <Box flexGrow={1} flexDirection="column">
+          <OverviewPanel
+            folder={currentFolder}
+            height={overviewH}
+          />
           <TypePanel
             folder={currentFolder}
             selectedIdx={typeIdx}

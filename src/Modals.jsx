@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { branchName } from './core.js';
 
 // ── Shared layout ─────────────────────────────────────────────────────────────
 
@@ -49,41 +50,32 @@ function ButtonBar({ buttons }) {
   );
 }
 
-// ── ActivateModal ─────────────────────────────────────────────────────────────
+// ── CheckoutModal ─────────────────────────────────────────────────────────────
 
-export function ActivateModal({ target, current, onConfirm, onCancel }) {
-  const [snapName, setSnapName] = useState('');
-
+export function CheckoutModal({ target, current, onConfirm, onCancel }) {
   useInput((input, key) => {
-    if (key.escape) { onCancel(); return; }
-    if (key.return) { onConfirm(snapName.trim() || null); }
-    if (input === 'y') { onConfirm(snapName.trim() || null); }
-    if (input === 'n') { onCancel(); }
+    if (key.escape || input === 'n') { onCancel(); return; }
+    if (key.return || input === 'y' || input === 'a') onConfirm();
   });
 
+  const targetLabel  = branchName(target.name);
+  const currentLabel = current ? branchName(current.name) : '—';
+
   return (
-    <Dialog title={`⚡ Activate  ${target.name}`} titleColor="green" width={68}>
-      <Row label="Will replace:" value={current?.name ?? ACTIVE_FOLDER} labelColor="gray" />
-      <Row label="Items currently:" value={String(current?.totalItems ?? '?')} labelColor="gray" />
-      <Row label="New content:" value={target.name} labelColor="gray" />
-      <Row label="Items to load:" value={String(target.totalItems)} labelColor="gray" />
+    <Dialog title={`⎇  Checkout '${targetLabel}'`} titleColor="green" width={60}>
+      <Row label="Current branch:" value={currentLabel}          labelColor="gray" />
+      <Row label="Items:"          value={String(current?.totalItems ?? '?')} labelColor="gray" />
       <Box height={1} />
-      <Text color="yellow">
-        Save current state as snapshot first? (leave blank to skip, Enter to confirm)
+      <Row label="Switch to:"      value={targetLabel}           labelColor="yellow" />
+      <Row label="Items:"          value={String(target.totalItems)} labelColor="yellow" />
+      <Box height={1} />
+      <Text color="gray">
+        The working copy will be replaced with this branch's content.
       </Text>
-      <Box marginTop={1}>
-        <Text color="gray">Name: </Text>
-        <TextInput
-          value={snapName}
-          onChange={setSnapName}
-          placeholder="e.g. my-work  or  2026-05-28"
-          onSubmit={v => onConfirm(v.trim() || null)}
-        />
-      </Box>
       <ButtonBar
         buttons={[
-          { key: 'Enter', label: 'Activate', color: 'green' },
-          { key: 'Esc / n', label: 'Cancel', color: 'red' },
+          { key: 'Enter / y', label: 'Checkout', color: 'green' },
+          { key: 'Esc / n',   label: 'Cancel',   color: 'red' },
         ]}
       />
     </Dialog>
@@ -285,11 +277,11 @@ const HELP_ROWS = [
   ['  Tab / l', 'Move focus: Folders → Types → Items'],
   ['  Shift+Tab / h', 'Move focus in reverse'],
   ['', ''],
-  ['Folder panel (left)', ''],
-  ['  a', 'Activate selected folder (replaces temp-local-inserts)'],
-  ['  n', 'New snapshot — copy active to a named folder'],
-  ['  d', 'Diff selected folder vs temp-local-inserts'],
-  ['  Delete', 'Delete selected folder (with confirmation)'],
+  ['Branch panel (left)', ''],
+  ['  a', 'Checkout selected branch'],
+  ['  n', 'New branch — snapshot of the current working state'],
+  ['  d', 'Diff selected branch vs active branch'],
+  ['  Delete', 'Delete selected branch (with confirmation)'],
   ['', ''],
   ['Items panel (bottom-right)', ''],
   ['  Space', 'Toggle item selection (multi-select)'],
