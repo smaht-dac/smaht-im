@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 
 export const REPO_ROOT =
   process.env.SMAHT_REPO_ROOT ?? path.join(os.homedir(), 'dbmi', 'smaht-portal');
@@ -25,17 +26,17 @@ const HISTORY_FILE = path.join(os.homedir(), '.smaht-im', 'activation-history.js
 const HEAD_FILE     = path.join(os.homedir(), '.smaht-im', 'HEAD');
 
 /** Strip the common prefix to get the human-readable branch name. */
-export function branchName(fullName) {
+export function folderLabel(fullName) {
   return fullName.slice(INSERT_PREFIX.length).replace(/^[-_]/, '');
 }
 
 /** Returns the currently checked-out branch's full folder name, or null. */
-export function getActiveBranch() {
+export function getLoadedFolder() {
   try { return fs.readFileSync(HEAD_FILE, 'utf8').trim() || null; }
   catch { return null; }
 }
 
-function setActiveBranch(name) {
+function setLoadedFolder(name) {
   fs.mkdirSync(path.dirname(HEAD_FILE), { recursive: true });
   fs.writeFileSync(HEAD_FILE, name);
 }
@@ -103,13 +104,16 @@ export function loadFolder(folderName) {
 
   const totalItems = types.reduce((sum, t) => sum + t.count, 0);
 
-  // Most-recent mtime across all JSON files — reflects the last pull or TUI write
+  // Most-recent mtime: JSON files first, fall back to directory mtime for empty folders
   let lastUpdated = null;
   for (const file of files) {
     try {
       const mtime = fs.statSync(path.join(folderPath, file)).mtime;
       if (!lastUpdated || mtime > lastUpdated) lastUpdated = mtime;
     } catch { /* ignore */ }
+  }
+  if (!lastUpdated) {
+    try { lastUpdated = fs.statSync(folderPath).mtime; } catch { /* ignore */ }
   }
 
   return { name: folderName, path: folderPath, types, totalItems, isActive: false, lastUpdated };
@@ -140,10 +144,10 @@ export function loadAllFolders() {
   }
 
   // Resolve HEAD; fall back to first branch if HEAD is missing or stale
-  let active = getActiveBranch();
+  let active = getLoadedFolder();
   if (!active || !names.includes(active)) {
     active = names[0] ?? null;
-    if (active) setActiveBranch(active);
+    if (active) setLoadedFolder(active);
   }
 
   const folders = names.map(n => {
@@ -151,33 +155,34 @@ export function loadAllFolders() {
     return f ? { ...f, isActive: n === active } : null;
   }).filter(Boolean);
 
-  // Sort by most recently updated first; ties broken by name
+  // Loaded folder always first, then by most-recently-updated, then name
   return folders.sort((a, b) => {
+    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
     const ta = a.lastUpdated?.getTime() ?? 0;
     const tb = b.lastUpdated?.getTime() ?? 0;
     return tb - ta || a.name.localeCompare(b.name);
   });
 }
 
-// ── checkout ──────────────────────────────────────────────────────────────────
+// ── switch folder ─────────────────────────────────────────────────────────────
 
 /**
- * Checkout a branch: copy its contents into the working copy (temp-local-inserts)
- * and update HEAD. The previously active branch is left untouched in its folder.
+ * Switch the loaded folder: copy its contents into the working copy
+ * (temp-local-inserts) and update HEAD.
  * Returns a status string on success; throws on failure.
  */
-export function checkoutBranch(targetName) {
-  const currentBranch = getActiveBranch();
-  if (targetName === currentBranch) return `Already on '${branchName(targetName)}'.`;
-  if (targetName === ACTIVE_FOLDER) throw new Error('Cannot checkout the working copy directly');
-  if (!targetName.startsWith(INSERT_PREFIX)) throw new Error(`'${targetName}' is not a valid branch`);
+export function switchFolder(targetName) {
+  const currentLoaded = getLoadedFolder();
+  if (targetName === currentLoaded) return `Already using '${folderLabel(targetName)}'.`;
+  if (targetName === ACTIVE_FOLDER) throw new Error('Cannot switch to the working copy directly');
+  if (!targetName.startsWith(INSERT_PREFIX)) throw new Error(`'${targetName}' is not a valid inserts folder`);
 
   const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
   const targetPath = path.join(INSERTS_BASE, targetName);
 
-  if (!fs.existsSync(targetPath)) throw new Error(`Branch '${branchName(targetName)}' not found`);
+  if (!fs.existsSync(targetPath)) throw new Error(`Folder '${folderLabel(targetName)}' not found`);
 
-  // Clear working copy and replace with target branch content
+  // Clear working copy and replace with target folder content
   fs.mkdirSync(activePath, { recursive: true });
   for (const f of fs.readdirSync(activePath).filter(n => n.endsWith('.json'))) {
     fs.unlinkSync(path.join(activePath, f));
@@ -186,10 +191,95 @@ export function checkoutBranch(targetName) {
     fs.copyFileSync(path.join(targetPath, f), path.join(activePath, f));
   }
 
-  setActiveBranch(targetName);
-  _recordHistory(currentBranch ?? ACTIVE_FOLDER, targetName);
+  setLoadedFolder(targetName);
+  _recordHistory(currentLoaded ?? ACTIVE_FOLDER, targetName);
 
-  return `Switched to '${branchName(targetName)}'`;
+  return `Switched to '${folderLabel(targetName)}'`;
+}
+
+// ── create branch ────────────────────────────────────────────────────────────
+
+/**
+ * Create a new empty branch (or copy json files from baseBranch).
+ * Returns the full folder name (INSERT_PREFIX + '-' + slug).
+ */
+export function createFolder(name, baseBranch = null) {
+  const slug = safeSlug(name);
+  if (!slug) throw new Error('Folder name is invalid');
+  const fullName = `${INSERT_PREFIX}-${slug}`;
+  const newPath  = path.join(INSERTS_BASE, fullName);
+
+  if (fs.existsSync(newPath)) throw new Error(`Folder '${slug}' already exists`);
+  fs.mkdirSync(newPath, { recursive: true });
+
+  if (baseBranch) {
+    const basePath = path.join(INSERTS_BASE, baseBranch);
+    if (!fs.existsSync(basePath)) throw new Error(`Base folder '${folderLabel(baseBranch)}' not found`);
+    for (const f of fs.readdirSync(basePath).filter(n => n.endsWith('.json'))) {
+      fs.copyFileSync(path.join(basePath, f), path.join(newPath, f));
+    }
+  }
+
+  return fullName;
+}
+
+/**
+ * Run update-inserts-from-server without --dest so it writes to the default
+ * temp-local-inserts (the working copy). The caller must switch to the target
+ * folder first so that folder is the active working copy.
+ *
+ * onLine(line) is called for each output line as it arrives (live progress).
+ * onDone(success) is called when the process exits.
+ * Returns the user-facing command string for logging.
+ */
+export function pullFolderAsync(env, query, onLine, onDone) {
+  const displayCmd = `pull-inserts ${env} smaht "${query}"`;
+
+  const child = spawn(
+    'update-inserts-from-server',
+    ['--env', env, '--portal', 'smaht', '--search', query],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PYENV_VERSION: 'smaht311' },
+      cwd: REPO_ROOT,
+    },
+  );
+
+  let buf = '';
+  const flush = (data) => {
+    buf += data.toString();
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) { if (line.trim()) onLine(line.trim()); }
+  };
+  child.stdout?.on('data', flush);
+  child.stderr?.on('data', flush);
+  child.on('close', code => {
+    if (buf.trim()) onLine(buf.trim());
+    onDone(code === 0);
+  });
+  child.on('error', err => {
+    onLine(`spawn error: ${err.message}`);
+    onDone(false);
+  });
+  return displayCmd;
+}
+
+/**
+ * Copy all JSON files from the working copy (temp-local-inserts) into a named
+ * folder, replacing whatever was there. Used to persist a pull result.
+ */
+export function syncWorkingCopyToFolder(targetName) {
+  const srcPath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+  const dstPath = path.join(INSERTS_BASE, targetName);
+  if (!fs.existsSync(srcPath)) throw new Error('Working copy not found');
+  if (!fs.existsSync(dstPath)) throw new Error(`Folder '${folderLabel(targetName)}' not found`);
+  for (const f of fs.readdirSync(dstPath).filter(n => n.endsWith('.json'))) {
+    fs.unlinkSync(path.join(dstPath, f));
+  }
+  for (const f of fs.readdirSync(srcPath).filter(n => n.endsWith('.json'))) {
+    fs.copyFileSync(path.join(srcPath, f), path.join(dstPath, f));
+  }
 }
 
 // ── snapshot ──────────────────────────────────────────────────────────────────
@@ -219,7 +309,7 @@ export function createSnapshot(name) {
  */
 export function deleteFolder(folderName) {
   if (folderName === ACTIVE_FOLDER) throw new Error('Cannot delete the working copy');
-  if (folderName === getActiveBranch()) throw new Error('Cannot delete the active branch — checkout another branch first');
+  if (folderName === getLoadedFolder()) throw new Error('Cannot delete the loaded folder — load another folder first');
   if (!folderName.startsWith(INSERT_PREFIX)) throw new Error(`Refusing: '${folderName}' is not a valid branch`);
   const folderPath = path.join(INSERTS_BASE, folderName);
   if (!fs.existsSync(folderPath)) throw new Error(`Folder '${folderName}' does not exist`);

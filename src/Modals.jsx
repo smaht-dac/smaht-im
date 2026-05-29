@@ -2,10 +2,10 @@
  * Modals.jsx — all dialog/overlay components
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
-import { branchName } from './core.js';
+import { folderLabel } from './core.js';
 
 // ── Shared layout ─────────────────────────────────────────────────────────────
 
@@ -50,32 +50,32 @@ function ButtonBar({ buttons }) {
   );
 }
 
-// ── CheckoutModal ─────────────────────────────────────────────────────────────
+// ── LoadModal ─────────────────────────────────────────────────────────────
 
-export function CheckoutModal({ target, current, onConfirm, onCancel }) {
+export function LoadModal({ target, current, onConfirm, onCancel }) {
   useInput((input, key) => {
     if (key.escape || input === 'n') { onCancel(); return; }
     if (key.return || input === 'y' || input === 'a') onConfirm();
   });
 
-  const targetLabel  = branchName(target.name);
-  const currentLabel = current ? branchName(current.name) : '—';
+  const targetLabel  = folderLabel(target.name);
+  const currentLabel = current ? folderLabel(current.name) : '—';
 
   return (
-    <Dialog title={`⎇  Checkout '${targetLabel}'`} titleColor="green" width={60}>
-      <Row label="Current branch:" value={currentLabel}          labelColor="gray" />
-      <Row label="Items:"          value={String(current?.totalItems ?? '?')} labelColor="gray" />
+    <Dialog title={`↪  Load '${targetLabel}'`} titleColor="green" width={60}>
+      <Row label="Current folder:" value={currentLabel}                        labelColor="gray" />
+      <Row label="Items:"          value={String(current?.totalItems ?? '?')}  labelColor="gray" />
       <Box height={1} />
-      <Row label="Switch to:"      value={targetLabel}           labelColor="yellow" />
-      <Row label="Items:"          value={String(target.totalItems)} labelColor="yellow" />
+      <Row label="Load folder:"    value={targetLabel}                         labelColor="yellow" />
+      <Row label="Items:"          value={String(target.totalItems)}           labelColor="yellow" />
       <Box height={1} />
       <Text color="gray">
-        The working copy will be replaced with this branch's content.
+        This folder's inserts will be loaded into the working copy.
       </Text>
       <ButtonBar
         buttons={[
-          { key: 'Enter / y', label: 'Checkout', color: 'green' },
-          { key: 'Esc / n',   label: 'Cancel',   color: 'red' },
+          { key: 'Enter / y', label: 'Load',   color: 'green' },
+          { key: 'Esc / n',   label: 'Cancel', color: 'red' },
         ]}
       />
     </Dialog>
@@ -141,6 +141,133 @@ export function DeleteModal({ folder, onConfirm, onCancel }) {
           { key: 'n / Esc', label: 'Cancel', color: 'green' },
         ]}
       />
+    </Dialog>
+  );
+}
+
+// ── NewFolderModal ────────────────────────────────────────────────────────────
+
+const ENVS = ['data', 'staging', 'devtest', 'wolf'];
+const N_FIELDS = 5; // name=0  base=1  query=2  env=3  checkout=4
+
+export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = null }) {
+  const baseOpts = [
+    { label: '(none)', value: null },
+    ...folders.map(b => ({ label: folderLabel(b.name), value: b.name })),
+  ];
+  const initBaseIdx = initialBase
+    ? Math.max(0, baseOpts.findIndex(o => o.value === initialBase))
+    : 0;
+
+  const [fieldIdx,   setField]    = useState(0);
+  const [readyField, setReady]    = useState(0); // lags fieldIdx by one tick — prevents mount race
+  const [name,       setName]     = useState('');
+  const [baseIdx,    setBaseIdx]  = useState(initBaseIdx);
+  const [query,      setQuery]    = useState('');
+  const [envIdx,     setEnvIdx]   = useState(0);
+  const [doLoad, setDoLoad] = useState(true);
+
+  useEffect(() => { setReady(fieldIdx); }, [fieldIdx]);
+
+  useInput((input, key) => {
+    if (key.escape) { onCancel(); return; }
+
+    // Tab / Shift-Tab always navigate fields
+    if (key.tab && !key.shift) { setField(f => (f + 1) % N_FIELDS); return; }
+    if (key.shift && key.tab)  { setField(f => (f - 1 + N_FIELDS) % N_FIELDS); return; }
+
+    // Up/down navigate fields when NOT in a text-input field
+    if (fieldIdx !== 0 && fieldIdx !== 2) {
+      if (key.downArrow) { setField(f => (f + 1) % N_FIELDS); return; }
+      if (key.upArrow)   { setField(f => (f - 1 + N_FIELDS) % N_FIELDS); return; }
+    }
+
+    // Left / right change selection in base (1) and env (3)
+    if (fieldIdx === 1) {
+      if (key.leftArrow)  { setBaseIdx(i => Math.max(0, i - 1)); return; }
+      if (key.rightArrow) { setBaseIdx(i => Math.min(baseOpts.length - 1, i + 1)); return; }
+    }
+    if (fieldIdx === 3) {
+      if (key.leftArrow)  { setEnvIdx(i => Math.max(0, i - 1)); return; }
+      if (key.rightArrow) { setEnvIdx(i => Math.min(ENVS.length - 1, i + 1)); return; }
+    }
+
+    // Space toggles checkout
+    if (fieldIdx === 4 && input === ' ') { setDoLoad(c => !c); return; }
+
+    // Enter submits (name required)
+    if (key.return && name.trim()) {
+      onConfirm({
+        name:       name.trim(),
+        base:       baseOpts[baseIdx].value,
+        query:      query.trim() || null,
+        env:        ENVS[envIdx],
+        doLoad,
+      });
+    }
+  });
+
+  const fc = fi => fieldIdx === fi ? 'cyan' : 'gray'; // field label color
+
+  return (
+    <Dialog title="⊕  New Folder" titleColor="cyan" width={74}>
+      {/* ── Name ── */}
+      <Box>
+        <Text color={fc(0)}>{'Name    '}</Text>
+        {readyField === 0
+          ? <TextInput value={name} onChange={setName} placeholder="my-folder" onSubmit={() => {}} />
+          : <Text color={name ? 'white' : 'gray'}>{name || 'my-folder'}</Text>}
+      </Box>
+
+      {/* ── From (base branch) ── */}
+      <Box marginTop={1}>
+        <Text color={fc(1)}>{'From    '}</Text>
+        {fieldIdx === 1 ? (
+          <Box>
+            <Text color="gray">◀  </Text>
+            <Text color="cyan" bold>{baseOpts[baseIdx].label}</Text>
+            <Text color="gray">  ▶</Text>
+          </Box>
+        ) : (
+          <Text color={baseIdx === 0 ? 'gray' : 'white'}>{baseOpts[baseIdx].label}</Text>
+        )}
+      </Box>
+
+      {/* ── Query ── */}
+      <Box marginTop={1}>
+        <Text color={fc(2)}>{'Query   '}</Text>
+        {readyField === 2
+          ? <TextInput value={query} onChange={setQuery} placeholder="?type=Donor&status=released" onSubmit={() => {}} />
+          : <Text color={query ? 'white' : 'gray'}>{query || '?type=Donor&status=released'}</Text>}
+      </Box>
+
+      {/* ── Env slider ── */}
+      <Box marginTop={1}>
+        <Text color={fc(3)}>{'Env     '}</Text>
+        <Box gap={2}>
+          {ENVS.map((e, i) => {
+            const sel = i === envIdx;
+            const foc = fieldIdx === 3;
+            return (
+              <Text key={e} bold={sel} color={sel && foc ? 'cyan' : sel ? 'white' : 'gray'}>
+                {foc && sel ? `[ ${e} ]` : e}
+              </Text>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* ── Checkout toggle ── */}
+      <Box marginTop={1}>
+        <Text color={fc(4)}>{doLoad ? '[✓]' : '[ ]'}</Text>
+        <Text color={fieldIdx === 4 ? 'white' : 'gray'}> Load after creating</Text>
+      </Box>
+
+      <ButtonBar buttons={[
+        { key: 'Enter', label: 'Create',     color: 'green' },
+        { key: 'Tab',   label: 'Next field', color: 'cyan'  },
+        { key: 'Esc',   label: 'Cancel',     color: 'red'   },
+      ]} />
     </Dialog>
   );
 }
@@ -277,11 +404,12 @@ const HELP_ROWS = [
   ['  Tab / l', 'Move focus: Folders → Types → Items'],
   ['  Shift+Tab / h', 'Move focus in reverse'],
   ['', ''],
-  ['Branch panel (left)', ''],
-  ['  a', 'Checkout selected branch'],
-  ['  n', 'New branch — snapshot of the current working state'],
-  ['  d', 'Diff selected branch vs active branch'],
-  ['  Delete', 'Delete selected branch (with confirmation)'],
+  ['Folders panel (left)', ''],
+  ['  c', 'Create new inserts folder'],
+  ['  a', 'Load selected folder into working copy'],
+  ['  n', 'Snapshot — copy current working state to new folder'],
+  ['  d', 'Diff selected folder vs loaded folder'],
+  ['  Delete', 'Delete selected folder (with confirmation)'],
   ['', ''],
   ['Items panel (bottom-right)', ''],
   ['  Space', 'Toggle item selection (multi-select)'],

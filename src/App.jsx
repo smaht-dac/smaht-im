@@ -7,18 +7,22 @@ import { Box, Text, useApp, useInput, useStdout } from 'ink';
 
 import {
   loadAllFolders,
-  checkoutBranch,
+  switchFolder,
+  createFolder,
+  pullFolderAsync,
+  syncWorkingCopyToFolder,
   createSnapshot,
   deleteFolder,
   moveItems,
   computeDiff,
   ACTIVE_FOLDER,
-  branchName,
+  folderLabel,
 } from './core.js';
 
-import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel } from './Panels.jsx';
+import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ErrorLogPanel } from './Panels.jsx';
 import {
-  CheckoutModal,
+  NewFolderModal,
+  LoadModal,
   SnapshotModal,
   DeleteModal,
   MoveModal,
@@ -31,7 +35,8 @@ import {
 
 function Footer({ focus }) {
   const actions = [
-    { key: 'a', desc: 'Checkout', active: focus === 'folders' },
+    { key: 'c', desc: 'New',   active: true },
+    { key: 'a', desc: 'Load',  active: focus === 'folders' },
     { key: 'n', desc: 'Snap',     active: true },
     { key: 'm', desc: 'Move',     active: focus === 'items' },
     { key: 'd', desc: 'Diff',     active: focus === 'folders' },
@@ -76,6 +81,8 @@ export default function App() {
   const [modal,       setModal]       = useState(null);
   const [notification, setNote]       = useState(null); // { msg, isError }
   const [focus,       setFocus]       = useState('folders'); // tracked for footer
+  const [errorLog,    setErrorLog]    = useState([]);       // persistent error strings
+  const [pulling,     setPulling]     = useState(null);     // command string while pull is running
 
   // ── derived ───────────────────────────────────────────────────────────────
 
@@ -102,6 +109,7 @@ export default function App() {
   const notify = (msg, isError = false) => {
     setNote({ msg, isError });
     setTimeout(() => setNote(null), 4000);
+    if (isError) setErrorLog(prev => [...prev.slice(-49), msg]);
   };
 
   // ── global key handler ────────────────────────────────────────────────────
@@ -112,6 +120,10 @@ export default function App() {
     if (input === 'q') { exit(); return; }
     if (input === '?') { setModal('help'); return; }
     if (input === 'r') { refresh(); notify('Reloaded from disk'); return; }
+    if (input === 'c') {
+      setModal(focus === 'folders' && currentFolder ? `new-branch:${currentFolder.name}` : 'new-branch');
+      return;
+    }
 
     if ((key.tab && !key.shift) || input === 'l') {
       setFocus(f => f === 'folders' ? 'types' : f === 'types' ? 'items' : 'folders');
@@ -122,17 +134,17 @@ export default function App() {
       return;
     }
 
-    // Branch panel actions
+    // Folders panel actions
     if (input === 'a') {
-      if (!currentFolder) { notify('No branch selected', true); return; }
-      if (currentFolder.isActive) { notify('Already on this branch'); return; }
+      if (!currentFolder) { notify('No folder selected', true); return; }
+      if (currentFolder.isActive) { notify('Already loaded'); return; }
       setModal('checkout');
       return;
     }
     if (input === 'n') { setModal('snapshot'); return; }
     if (input === 'd') {
       if (!currentFolder || currentFolder.isActive) {
-        notify('Select a non-active branch to diff', true);
+        notify('Select a non-loaded folder to diff', true);
         return;
       }
       setModal('diff');
@@ -140,7 +152,7 @@ export default function App() {
     }
     if (key.delete || key.backspace) {
       if (!currentFolder || currentFolder.isActive) {
-        notify('Cannot delete the active branch', true);
+        notify('Cannot delete the loaded folder', true);
         return;
       }
       setModal('delete');
@@ -179,16 +191,74 @@ export default function App() {
 
   // ── modal callbacks ───────────────────────────────────────────────────────
 
-  const handleCheckout = () => {
+  const handleLoad = () => {
     setModal(null);
     try {
-      const msg = checkoutBranch(currentFolder.name);
+      const msg = switchFolder(currentFolder.name);
       notify(msg);
       setFolderIdx(0); // active branch is always first
       setTypeIdx(0);
       setItemIdx(0);
       setSelected(new Set());
       refresh();
+    } catch (e) {
+      notify(e.message, true);
+    }
+  };
+
+  const handleCreateFolder = ({ name, base, query, env, doLoad }) => {
+    setModal(null);
+    try {
+      const newName = createFolder(name, base);
+
+      if (query) {
+        // Remember which folder was loaded before we switch
+        const prevLoaded = activeFolder?.name ?? null;
+
+        // Switch to the new folder so the pull writes into its working copy
+        try { switchFolder(newName); } catch (_) {}
+
+        const lines = [];
+        const cmd = pullFolderAsync(
+          env,
+          query,
+          (line) => {
+            lines.push(line);
+            setPulling(line); // show latest progress line in spinner
+          },
+          (success) => {
+            setPulling(null);
+            if (success) {
+              // Persist pulled data from working copy → named folder
+              try { syncWorkingCopyToFolder(newName); } catch (e) {
+                setErrorLog(prev => [...prev.slice(-49), `sync error: ${e.message}`]);
+              }
+              if (!doLoad && prevLoaded) {
+                try { switchFolder(prevLoaded); } catch (_) {}
+                notify(`'${name}' created`);
+              } else {
+                notify(`'${name}' created and loaded`);
+                setFolderIdx(0);
+              }
+            } else {
+              const errOut = lines.slice(-8).join('\n') || 'pull failed (no output)';
+              setErrorLog(prev => [...prev.slice(-49), errOut]);
+              if (prevLoaded) try { switchFolder(prevLoaded); } catch (_) {}
+              try { deleteFolder(newName); } catch (_) {}
+              notify(`Pull failed for '${name}' — folder removed`, true);
+            }
+            refresh();
+          },
+        );
+        setErrorLog(prev => [...prev.slice(-49), `$ ${cmd}`]);
+        setPulling(cmd);
+        notify(`Pulling inserts into '${name}'…`);
+      } else {
+        if (doLoad) switchFolder(newName);
+        notify(`'${name}' created${doLoad ? ' and loaded' : ''}`);
+        refresh();
+        if (doLoad) setFolderIdx(0);
+      }
     } catch (e) {
       notify(e.message, true);
     }
@@ -240,7 +310,8 @@ export default function App() {
   const contentHeight = Math.max(8, appHeight - footerHeight - notifHeight);
 
   const overviewH    = 4;
-  const remainingH   = contentHeight - overviewH;
+  const logH         = 6;
+  const remainingH   = contentHeight - overviewH - logH;
   const typesPanelH  = Math.floor(remainingH * 0.35);
   const itemsPanelH  = remainingH - typesPanelH;
 
@@ -255,11 +326,19 @@ export default function App() {
 
     return (
       <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
+        {modal?.startsWith('new-branch') && (
+          <NewFolderModal
+            folders={folders}
+            initialBase={modal.includes(':') ? modal.split(':')[1] : null}
+            onConfirm={handleCreateFolder}
+            onCancel={() => setModal(null)}
+          />
+        )}
         {modal === 'checkout' && (
-          <CheckoutModal
+          <LoadModal
             target={currentFolder}
             current={activeFolder}
-            onConfirm={handleCheckout}
+            onConfirm={handleLoad}
             onCancel={() => setModal(null)}
           />
         )}
@@ -289,8 +368,8 @@ export default function App() {
         )}
         {modal === 'diff' && diff && (
           <DiffModal
-            nameA={activeFolder ? branchName(activeFolder.name) : 'current'}
-            nameB={currentFolder ? branchName(currentFolder.name) : ''}
+            nameA={activeFolder ? folderLabel(activeFolder.name) : 'current'}
+            nameB={currentFolder ? folderLabel(currentFolder.name) : ''}
             diff={diff}
             onClose={() => setModal(null)}
           />
@@ -357,6 +436,7 @@ export default function App() {
             height={itemsPanelH}
             isFocused={focus === 'items'}
           />
+          <ErrorLogPanel errors={errorLog} pulling={pulling} height={logH} />
         </Box>
       </Box>
 

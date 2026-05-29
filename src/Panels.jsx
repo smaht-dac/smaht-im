@@ -2,9 +2,9 @@
  * Panels.jsx — FolderPanel, TypePanel, ItemsPanel
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { INSERT_PREFIX, branchName } from './core.js';
+import { INSERT_PREFIX, folderLabel } from './core.js';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
   // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + age(4) = 20
   const DATE_W    = 4; // "11mo" — longest relative-time token (right-aligned, no prefix)
   const overhead  = 16 + DATE_W;
-  const longestShortName = folders.reduce((max, f) => Math.max(max, branchName(f.name).length), 0);
+  const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
   const panelWidth = Math.min(100, Math.max(30, longestShortName + overhead));
   const nameWidth  = panelWidth - overhead;
 
@@ -80,7 +80,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
       {/* Title bar */}
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'green' : 'white'}>
-          {' Branches '}
+          {' Folders '}
         </Text>
         <Text color="gray">({folders.length})</Text>
       </Box>
@@ -89,7 +89,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
       {slice.map((folder, i) => {
         const realIdx = i + offset;
         const isSelected = realIdx === selectedIdx;
-        const shortName = branchName(folder.name);
+        const shortName = folderLabel(folder.name);
 
         return (
           <Box key={folder.name} paddingX={1}>
@@ -120,7 +120,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
 // ── OverviewPanel ─────────────────────────────────────────────────────────────
 
 export function OverviewPanel({ folder, height }) {
-  const label       = folder ? branchName(folder.name) : null;
+  const label       = folder ? folderLabel(folder.name) : null;
   const lastUpdated = fmtFullDate(folder?.lastUpdated ?? null);
   const items       = folder ? String(folder.totalItems) : '—';
 
@@ -301,6 +301,68 @@ export function ItemsPanel({
               {'  '}
               {statusStr}
             </Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
+}
+
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+const SPIN_FRAMES = ['|', '/', '-', '\\'];
+
+function Spinner() {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setFrame(f => (f + 1) % SPIN_FRAMES.length), 120);
+    return () => clearInterval(id);
+  }, []);
+  return <Text color="yellow">{SPIN_FRAMES[frame]} </Text>;
+}
+
+// ── ErrorLogPanel ─────────────────────────────────────────────────────────────
+
+export function ErrorLogPanel({ errors, pulling, height }) {
+  const hasRealErr = errors.some(e => !e.startsWith('$ '));
+  const hasAny     = errors.length > 0 || !!pulling;
+  // Reserve a row for the spinner line when pulling; rest go to log entries
+  const spinnerRows = pulling ? 1 : 0;
+  const innerRows   = Math.max(0, height - 3 - spinnerRows); // -2 borders -1 title
+  const visible     = errors.slice(-innerRows);
+
+  return (
+    <Box
+      height={height}
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={hasRealErr ? 'red' : pulling ? 'yellow' : 'gray'}
+    >
+      <Box paddingX={1}>
+        {hasRealErr
+          ? <Text bold color="red"> Errors ({errors.filter(e => !e.startsWith('$ ')).length}) </Text>
+          : pulling
+          ? <Text bold color="yellow"> Pulling… </Text>
+          : <Text dimColor> Log </Text>}
+      </Box>
+      {!hasAny && (
+        <Box paddingX={2}>
+          <Text dimColor>No entries</Text>
+        </Box>
+      )}
+      {pulling && (
+        <Box paddingX={1}>
+          <Spinner />
+          <Text color="yellow">{trunc(pulling, 114)}</Text>
+        </Box>
+      )}
+      {visible.map((e, i) => {
+        const isCmd = e.startsWith('$ ');
+        return (
+          <Box key={i} paddingX={1}>
+            {isCmd
+              ? <Text color="cyan">{trunc(e, 120)}</Text>
+              : <><Text color="red">✗ </Text><Text color="white">{trunc(e, 116)}</Text></>}
           </Box>
         );
       })}
