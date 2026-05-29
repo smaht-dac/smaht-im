@@ -151,10 +151,12 @@ export function loadAllFolders() {
     return f ? { ...f, isActive: n === active } : null;
   }).filter(Boolean);
 
-  return [
-    ...folders.filter(f => f.isActive),
-    ...folders.filter(f => !f.isActive),
-  ];
+  // Sort by most recently updated first; ties broken by name
+  return folders.sort((a, b) => {
+    const ta = a.lastUpdated?.getTime() ?? 0;
+    const tb = b.lastUpdated?.getTime() ?? 0;
+    return tb - ta || a.name.localeCompare(b.name);
+  });
 }
 
 // ── checkout ──────────────────────────────────────────────────────────────────

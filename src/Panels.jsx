@@ -22,13 +22,30 @@ function trunc(str, maxLen) {
   return str.slice(0, maxLen - 1) + '…';
 }
 
-/** Format a Date as YYYY-MM-DD in local time, or '—' if null. */
-function fmtDate(d) {
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/** Format a Date as "Month D, YYYY" in local time, or '—' if null. */
+function fmtFullDate(d) {
   if (!d) return '—';
-  const y  = d.getFullYear();
-  const m  = String(d.getMonth() + 1).padStart(2, '0');
-  const dy = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dy}`;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+/** Return a compact relative-time string: 5m, 3h, 1d, 2w, 4mo, 2y — or '—' if null. */
+function relativeTime(d) {
+  if (!d) return '—';
+  const ms     = Date.now() - d.getTime();
+  const mins   = Math.floor(ms / 60_000);
+  const hours  = Math.floor(ms / 3_600_000);
+  const days   = Math.floor(ms / 86_400_000);
+  const weeks  = Math.floor(days / 7);
+  const months = Math.floor(days / 30.44);
+  const years  = Math.floor(days / 365.25);
+  if (years  >= 1) return `${years}y`;
+  if (months >= 1) return `${months}mo`;
+  if (weeks  >= 1) return `${weeks}w`;
+  if (days   >= 1) return `${days}d`;
+  if (hours  >= 1) return `${hours}h`;
+  return `${Math.max(1, mins)}m`;
 }
 
 // ── FolderPanel ───────────────────────────────────────────────────────────────
@@ -41,12 +58,12 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   });
 
-  // Dynamic width: fit longest branch name + date column, capped at 100
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + date(12) = 28
-  const DATE_W    = 12; // "  YYYY-MM-DD"
+  // Dynamic width: fit longest branch name + count + right-aligned age, capped at 100
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + age(4) = 20
+  const DATE_W    = 4; // "11mo" — longest relative-time token (right-aligned, no prefix)
   const overhead  = 16 + DATE_W;
   const longestShortName = folders.reduce((max, f) => Math.max(max, branchName(f.name).length), 0);
-  const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
+  const panelWidth = Math.min(100, Math.max(30, longestShortName + overhead));
   const nameWidth  = panelWidth - overhead;
 
   const innerHeight = Math.max(1, height - 2); // subtract border rows
@@ -91,7 +108,8 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
               {trunc(shortName, nameWidth)}
             </Text>
             <Text color="gray"> [{folder.totalItems}]</Text>
-            <Text color="gray">  {fmtDate(folder.lastUpdated)}</Text>
+            <Box flexGrow={1} />
+            <Text color="gray">{relativeTime(folder.lastUpdated)}</Text>
           </Box>
         );
       })}
@@ -103,7 +121,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
 
 export function OverviewPanel({ folder, height }) {
   const label       = folder ? branchName(folder.name) : null;
-  const lastUpdated = fmtDate(folder?.lastUpdated ?? null);
+  const lastUpdated = fmtFullDate(folder?.lastUpdated ?? null);
   const items       = folder ? String(folder.totalItems) : '—';
 
   return (
@@ -114,17 +132,17 @@ export function OverviewPanel({ folder, height }) {
       borderColor="gray"
     >
       <Box paddingX={1}>
-        <Text bold color="white"> Overview </Text>
-        {label && <Text color="gray">{label}</Text>}
+        <Text dimColor> Overview </Text>
+        {label && <Text dimColor>{label}</Text>}
       </Box>
       <Box paddingX={2} gap={4}>
         <Box>
-          <Text color="gray">{'Last pulled  '}</Text>
-          <Text color={folder ? 'white' : 'gray'}>{lastUpdated}</Text>
+          <Text dimColor>Last pulled  </Text>
+          <Text dimColor>{lastUpdated}</Text>
         </Box>
         <Box>
-          <Text color="gray">{'Items  '}</Text>
-          <Text color={folder ? 'white' : 'gray'}>{items}</Text>
+          <Text dimColor>Items  </Text>
+          <Text dimColor>{items}</Text>
         </Box>
       </Box>
     </Box>
