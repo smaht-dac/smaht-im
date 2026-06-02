@@ -12,6 +12,7 @@ import {
   pullFolderAsync,
   syncWorkingCopyToFolder,
   createSnapshot,
+  renameFolder,
   deleteFolder,
   moveItems,
   computeDiff,
@@ -23,6 +24,7 @@ import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ErrorLogPanel } from
 import {
   NewFolderModal,
   LoadModal,
+  RenameModal,
   SnapshotModal,
   DeleteModal,
   MoveModal,
@@ -35,8 +37,9 @@ import {
 
 function Footer({ focus }) {
   const actions = [
-    { key: 'c', desc: 'New',   active: true },
-    { key: 'a', desc: 'Load',  active: focus === 'folders' },
+    { key: 'c', desc: 'New',    active: true },
+    { key: 'e', desc: 'Rename', active: focus === 'folders' },
+    { key: 'a', desc: 'Load',   active: focus === 'folders' },
     { key: 'n', desc: 'Snap',     active: true },
     { key: 'm', desc: 'Move',     active: focus === 'items' },
     { key: 'd', desc: 'Diff',     active: focus === 'folders' },
@@ -135,6 +138,11 @@ export default function App() {
     }
 
     // Folders panel actions
+    if (input === 'e') {
+      if (!currentFolder) { notify('No folder selected', true); return; }
+      setModal('rename');
+      return;
+    }
     if (input === 'a') {
       if (!currentFolder) { notify('No folder selected', true); return; }
       if (currentFolder.isActive) { notify('Already loaded'); return; }
@@ -201,6 +209,19 @@ export default function App() {
       setItemIdx(0);
       setSelected(new Set());
       refresh();
+    } catch (e) {
+      notify(e.message, true);
+    }
+  };
+
+  const handleRename = (newSlug) => {
+    setModal(null);
+    try {
+      const newName = renameFolder(currentFolder.name, newSlug);
+      notify(`Renamed to '${newSlug}'`);
+      refresh();
+      // Keep selection on the renamed folder (it stays at the same position)
+      setTypeIdx(0);
     } catch (e) {
       notify(e.message, true);
     }
@@ -331,6 +352,13 @@ export default function App() {
             folders={folders}
             initialBase={modal.includes(':') ? modal.split(':')[1] : null}
             onConfirm={handleCreateFolder}
+            onCancel={() => setModal(null)}
+          />
+        )}
+        {modal === 'rename' && currentFolder && (
+          <RenameModal
+            folder={currentFolder}
+            onConfirm={handleRename}
             onCancel={() => setModal(null)}
           />
         )}

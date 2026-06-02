@@ -120,6 +120,35 @@ export function SnapshotModal({ activeFolder, onConfirm, onCancel }) {
   );
 }
 
+// ── RenameModal ───────────────────────────────────────────────────────────────
+
+export function RenameModal({ folder, onConfirm, onCancel }) {
+  const current = folderLabel(folder.name);
+  const [name, setName] = useState(current);
+
+  useInput((input, key) => {
+    if (key.escape) { onCancel(); return; }
+  });
+
+  return (
+    <Dialog title={`✎  Rename '${current}'`} titleColor="yellow" width={62}>
+      <Box>
+        <Text color="gray">New name  </Text>
+        <TextInput
+          value={name}
+          onChange={setName}
+          placeholder={current}
+          onSubmit={v => { if (v.trim()) onConfirm(v.trim()); }}
+        />
+      </Box>
+      <ButtonBar buttons={[
+        { key: 'Enter', label: 'Rename', color: 'yellow' },
+        { key: 'Esc',   label: 'Cancel', color: 'red' },
+      ]} />
+    </Dialog>
+  );
+}
+
 // ── DeleteModal ───────────────────────────────────────────────────────────────
 
 export function DeleteModal({ folder, onConfirm, onCancel }) {
@@ -406,6 +435,7 @@ const HELP_ROWS = [
   ['', ''],
   ['Folders panel (left)', ''],
   ['  c', 'Create new inserts folder'],
+  ['  e', 'Rename selected folder'],
   ['  a', 'Load selected folder into working copy'],
   ['  n', 'Snapshot — copy current working state to new folder'],
   ['  d', 'Diff selected folder vs loaded folder'],
