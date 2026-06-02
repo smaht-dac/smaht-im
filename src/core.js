@@ -120,9 +120,44 @@ export function loadFolder(folderName) {
 }
 
 /**
- * Load all named branches (excludes the working copy temp-local-inserts).
- * On first run, bootstraps a 'main' branch from the working copy.
- * The checked-out branch (from HEAD) is always first; others are sorted.
+ * True if temp-local-inserts has exactly the same JSON files (by name + size)
+ * as the given named folder. Used to detect external changes.
+ */
+function workingCopyMatchesFolder(folderName) {
+  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+  const folderPath = path.join(INSERTS_BASE, folderName);
+  if (!fs.existsSync(folderPath)) return false;
+  const toMap = (dir) => new Map(
+    fs.readdirSync(dir)
+      .filter(f => f.endsWith('.json'))
+      .map(f => [f, fs.statSync(path.join(dir, f)).size]),
+  );
+  const aMap = toMap(activePath);
+  const fMap = toMap(folderPath);
+  if (aMap.size !== fMap.size) return false;
+  for (const [file, size] of aMap) { if (fMap.get(file) !== size) return false; }
+  return true;
+}
+
+/** Generate a unique folder name based on the current local date-time. */
+function timestampFolderName() {
+  const d   = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const base = `${INSERT_PREFIX}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  if (!fs.existsSync(path.join(INSERTS_BASE, base))) return base;
+  for (let i = 2; i < 100; i++) {
+    const c = `${base}-${i}`;
+    if (!fs.existsSync(path.join(INSERTS_BASE, c))) return c;
+  }
+  return base;
+}
+
+/**
+ * Load all inserts folders (excludes the working copy temp-local-inserts).
+ * On first run, bootstraps a 'main' folder from the working copy.
+ * On every load, if temp-local-inserts has data that doesn't match the
+ * loaded folder, a new timestamped folder is created from it automatically.
+ * The loaded folder (from HEAD) is always first; others sorted by recency.
  */
 export function loadAllFolders() {
   if (!fs.existsSync(INSERTS_BASE)) return [];
@@ -133,21 +168,32 @@ export function loadAllFolders() {
     .map(e => e.name)
     .sort();
 
-  // Bootstrap: no branches yet — create 'main' from the working copy
-  if (names.length === 0) {
-    const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
-    if (fs.existsSync(activePath)) {
-      const mainName = `${INSERT_PREFIX}-main`;
-      fs.cpSync(activePath, path.join(INSERTS_BASE, mainName), { recursive: true });
-      names = [mainName];
-    }
+  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+  const workingHasData = fs.existsSync(activePath) &&
+    fs.readdirSync(activePath).some(f => f.endsWith('.json'));
+
+  // Bootstrap: no folders yet — create 'main' from the working copy
+  if (names.length === 0 && workingHasData) {
+    const mainName = `${INSERT_PREFIX}-main`;
+    fs.cpSync(activePath, path.join(INSERTS_BASE, mainName), { recursive: true });
+    names = [mainName];
   }
 
-  // Resolve HEAD; fall back to first branch if HEAD is missing or stale
+  // Resolve HEAD; fall back to first folder if HEAD is missing or stale
   let active = getLoadedFolder();
   if (!active || !names.includes(active)) {
     active = names[0] ?? null;
     if (active) setLoadedFolder(active);
+  }
+
+  // If temp-local-inserts has data that differs from the loaded folder,
+  // snapshot it into a new timestamped folder and make that the loaded one.
+  if (workingHasData && (!active || !workingCopyMatchesFolder(active))) {
+    const newName = timestampFolderName();
+    fs.cpSync(activePath, path.join(INSERTS_BASE, newName), { recursive: true });
+    names.push(newName);
+    setLoadedFolder(newName);
+    active = newName;
   }
 
   const folders = names.map(n => {
@@ -280,6 +326,34 @@ export function syncWorkingCopyToFolder(targetName) {
   for (const f of fs.readdirSync(srcPath).filter(n => n.endsWith('.json'))) {
     fs.copyFileSync(path.join(srcPath, f), path.join(dstPath, f));
   }
+}
+
+// ── rename folder ─────────────────────────────────────────────────────────────
+
+/**
+ * Rename a named inserts folder. Updates HEAD if this was the loaded folder.
+ * Returns the new full folder name.
+ */
+export function renameFolder(oldName, newSlug) {
+  const slug = safeSlug(newSlug);
+  if (!slug) throw new Error('Name is invalid');
+  const newName = `${INSERT_PREFIX}-${slug}`;
+
+  if (oldName === ACTIVE_FOLDER) throw new Error('Cannot rename the working copy');
+  if (!oldName.startsWith(INSERT_PREFIX)) throw new Error(`'${oldName}' is not a valid folder`);
+  if (newName === oldName) throw new Error('Name is unchanged');
+
+  const oldPath = path.join(INSERTS_BASE, oldName);
+  const newPath = path.join(INSERTS_BASE, newName);
+
+  if (!fs.existsSync(oldPath)) throw new Error(`Folder '${folderLabel(oldName)}' not found`);
+  if (fs.existsSync(newPath)) throw new Error(`'${slug}' already exists`);
+
+  fs.renameSync(oldPath, newPath);
+
+  if (getLoadedFolder() === oldName) setLoadedFolder(newName);
+
+  return newName;
 }
 
 // ── snapshot ──────────────────────────────────────────────────────────────────
