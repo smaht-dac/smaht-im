@@ -20,6 +20,13 @@ import {
   folderLabel,
 } from './core.js';
 
+import {
+  loadBindings,
+  saveBindings,
+  matches,
+  bindingLabel,
+} from './keybindings.js';
+
 import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ErrorLogPanel } from './Panels.jsx';
 import {
   NewFolderModal,
@@ -30,30 +37,32 @@ import {
   MoveModal,
   DiffModal,
   HelpModal,
+  KeybindingsModal,
   NotificationBar,
 } from './Modals.jsx';
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-function Footer({ focus }) {
+function Footer({ focus, bindings }) {
+  const kb = bindings;
   const actions = [
-    { key: 'c', desc: 'New',    active: true },
-    { key: 'e', desc: 'Rename', active: focus === 'folders' },
-    { key: 'a', desc: 'Load',   active: focus === 'folders' },
-    { key: 'n', desc: 'Snap',     active: true },
-    { key: 'm', desc: 'Move',     active: focus === 'items' },
-    { key: 'd', desc: 'Diff',     active: focus === 'folders' },
-    { key: 'Del', desc: 'Delete', active: focus === 'folders' },
-    { key: 'r', desc: 'Refresh',  active: true },
-    { key: '?', desc: 'Help',     active: true },
-    { key: 'q', desc: 'Quit',     active: true },
-    { key: 'Tab', desc: 'Panel',  active: true },
+    { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
+    { key: bindingLabel(kb.rename),       desc: 'Rename',  active: focus === 'folders' },
+    { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
+    { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
+    { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
+    { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
+    { key: bindingLabel(kb.deleteFolder), desc: 'Delete',  active: focus === 'folders' },
+    { key: bindingLabel(kb.refresh),      desc: 'Refresh', active: true },
+    { key: bindingLabel(kb.help),         desc: 'Help',    active: true },
+    { key: bindingLabel(kb.quit),         desc: 'Quit',    active: true },
+    { key: 'Tab',                         desc: 'Panel',   active: true },
   ];
 
   return (
     <Box borderStyle="single" borderColor="gray" paddingX={1}>
       {actions.map((a, i) => (
-        <Box key={a.key} marginRight={1}>
+        <Box key={a.key + a.desc} marginRight={1}>
           <Text color={a.active ? 'cyan' : 'gray'}>
             [{a.key}]
           </Text>
@@ -76,16 +85,17 @@ export default function App() {
 
   // ── state ─────────────────────────────────────────────────────────────────
 
-  const [folders,     setFolders]     = useState([]);
-  const [folderIdx,   setFolderIdx]   = useState(0);
-  const [typeIdx,     setTypeIdx]     = useState(0);
-  const [itemIdx,     setItemIdx]     = useState(0);
-  const [selectedUuids, setSelected]  = useState(new Set());
-  const [modal,       setModal]       = useState(null);
-  const [notification, setNote]       = useState(null); // { msg, isError }
-  const [focus,       setFocus]       = useState('folders'); // tracked for footer
-  const [errorLog,    setErrorLog]    = useState([]);       // persistent error strings
-  const [pulling,     setPulling]     = useState(null);     // command string while pull is running
+  const [folders,       setFolders]     = useState([]);
+  const [folderIdx,     setFolderIdx]   = useState(0);
+  const [typeIdx,       setTypeIdx]     = useState(0);
+  const [itemIdx,       setItemIdx]     = useState(0);
+  const [selectedUuids, setSelected]   = useState(new Set());
+  const [modal,         setModal]       = useState(null);
+  const [notification,  setNote]        = useState(null); // { msg, isError }
+  const [focus,         setFocus]       = useState('folders');
+  const [errorLog,      setErrorLog]    = useState([]);
+  const [pulling,       setPulling]     = useState(null);
+  const [bindings,      setBindings]    = useState(() => loadBindings());
 
   // ── derived ───────────────────────────────────────────────────────────────
 
@@ -120,10 +130,11 @@ export default function App() {
   useInput((input, key) => {
     if (modal) return; // modals handle their own input
 
-    if (input === 'q') { exit(); return; }
-    if (input === '?') { setModal('help'); return; }
-    if (input === 'r') { refresh(); notify('Reloaded from disk'); return; }
-    if (input === 'c') {
+    if (matches(bindings.quit,     input, key)) { exit(); return; }
+    if (matches(bindings.help,     input, key)) { setModal('help'); return; }
+    if (matches(bindings.refresh,  input, key)) { refresh(); notify('Reloaded from disk'); return; }
+    if (matches(bindings.editKeys, input, key)) { setModal('editkeys'); return; }
+    if (matches(bindings.newFolder, input, key)) {
       setModal(focus === 'folders' && currentFolder ? `new-branch:${currentFolder.name}` : 'new-branch');
       return;
     }
@@ -138,19 +149,19 @@ export default function App() {
     }
 
     // Folders panel actions
-    if (input === 'e') {
+    if (matches(bindings.rename, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
       setModal('rename');
       return;
     }
-    if (input === 'a') {
+    if (matches(bindings.load, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
       if (currentFolder.isActive) { notify('Already loaded'); return; }
       setModal('checkout');
       return;
     }
-    if (input === 'n') { setModal('snapshot'); return; }
-    if (input === 'd') {
+    if (matches(bindings.snapshot,     input, key)) { setModal('snapshot'); return; }
+    if (matches(bindings.diff,         input, key)) {
       if (!currentFolder || currentFolder.isActive) {
         notify('Select a non-loaded folder to diff', true);
         return;
@@ -158,7 +169,7 @@ export default function App() {
       setModal('diff');
       return;
     }
-    if (key.delete || key.backspace) {
+    if (matches(bindings.deleteFolder, input, key)) {
       if (!currentFolder || currentFolder.isActive) {
         notify('Cannot delete the loaded folder', true);
         return;
@@ -167,26 +178,34 @@ export default function App() {
       return;
     }
 
+    // Context-aware select key: loads a folder in the folders panel,
+    // toggles item selection in the items panel.
+    if (matches(bindings.selectItem, input, key)) {
+      if (focus === 'folders') {
+        if (!currentFolder) { notify('No folder selected', true); return; }
+        if (currentFolder.isActive) { notify('Already loaded'); return; }
+        setModal('checkout');
+      } else if (focus === 'items') {
+        const item = currentItems[itemIdx];
+        if (!item) return;
+        setSelected(prev => {
+          const next = new Set(prev);
+          if (next.has(item.uuid)) next.delete(item.uuid);
+          else next.add(item.uuid);
+          return next;
+        });
+      }
+      return;
+    }
+
     // Items panel actions
-    if (input === 'm') {
+    if (matches(bindings.moveItems, input, key)) {
       if (!currentType) { notify('No type selected', true); return; }
       if (selectedUuids.size === 0) { notify('Select items first (Space)', true); return; }
       setModal('move');
       return;
     }
-    if (input === ' ') {
-      // toggle item at current cursor
-      const item = currentItems[itemIdx];
-      if (!item) return;
-      setSelected(prev => {
-        const next = new Set(prev);
-        if (next.has(item.uuid)) next.delete(item.uuid);
-        else next.add(item.uuid);
-        return next;
-      });
-      return;
-    }
-    if (key.ctrl && input === 'a') {
+    if (matches(bindings.selectAll, input, key)) {
       setSelected(new Set(currentItems.map(i => i.uuid)));
       notify(`Selected all ${currentItems.length} items`);
       return;
@@ -204,7 +223,7 @@ export default function App() {
     try {
       const msg = switchFolder(currentFolder.name);
       notify(msg);
-      setFolderIdx(0); // active branch is always first
+      setFolderIdx(0);
       setTypeIdx(0);
       setItemIdx(0);
       setSelected(new Set());
@@ -217,10 +236,9 @@ export default function App() {
   const handleRename = (newSlug) => {
     setModal(null);
     try {
-      const newName = renameFolder(currentFolder.name, newSlug);
+      renameFolder(currentFolder.name, newSlug);
       notify(`Renamed to '${newSlug}'`);
       refresh();
-      // Keep selection on the renamed folder (it stays at the same position)
       setTypeIdx(0);
     } catch (e) {
       notify(e.message, true);
@@ -233,14 +251,12 @@ export default function App() {
       const newName = createFolder(name, base);
 
       if (query) {
-        // Remember which folder was loaded before we switch
         const prevLoaded = activeFolder?.name ?? null;
 
-        // Switch to the new folder so the pull writes into its working copy
         try { switchFolder(newName); } catch (_) {}
 
         const lines = [];
-        let lastPullRender = 0; // throttle: max one setPulling per 200 ms
+        let lastPullRender = 0;
         const cmd = pullFolderAsync(
           env,
           query,
@@ -255,7 +271,6 @@ export default function App() {
           (success) => {
             setPulling(null);
             if (success) {
-              // Persist pulled data from working copy → named folder
               try { syncWorkingCopyToFolder(newName); } catch (e) {
                 setErrorLog(prev => [...prev.slice(-49), `sync error: ${e.message}`]);
               }
@@ -327,18 +342,25 @@ export default function App() {
     }
   };
 
+  const handleSaveKeybindings = (newBindings) => {
+    saveBindings(newBindings);
+    setBindings(newBindings);
+    setModal(null);
+    notify('Keybindings saved');
+  };
+
   // ── layout math ───────────────────────────────────────────────────────────
 
-  const appHeight    = termHeight - 1; // stay below stdout.rows so Ink uses eraseLines not clearTerminal
+  const appHeight    = termHeight - 1;
   const footerHeight = 3;
-  const NOTIF_H      = 1; // always reserve 1 row — prevents height-change flicker on appear/disappear
+  const NOTIF_H      = 1;
   const contentHeight = Math.max(8, appHeight - footerHeight - NOTIF_H);
 
-  const overviewH    = 4;
-  const logH         = 6;
-  const remainingH   = contentHeight - overviewH - logH;
-  const typesPanelH  = Math.floor(remainingH * 0.35);
-  const itemsPanelH  = remainingH - typesPanelH;
+  const overviewH   = 4;
+  const logH        = 6;
+  const remainingH  = contentHeight - overviewH - logH;
+  const typesPanelH = Math.floor(remainingH * 0.35);
+  const itemsPanelH = remainingH - typesPanelH;
 
   // ── modal rendering ───────────────────────────────────────────────────────
 
@@ -407,7 +429,14 @@ export default function App() {
           />
         )}
         {modal === 'help' && (
-          <HelpModal onClose={() => setModal(null)} />
+          <HelpModal bindings={bindings} onClose={() => setModal(null)} />
+        )}
+        {modal === 'editkeys' && (
+          <KeybindingsModal
+            bindings={bindings}
+            onSave={handleSaveKeybindings}
+            onCancel={() => setModal(null)}
+          />
         )}
       </Box>
     );
@@ -415,9 +444,15 @@ export default function App() {
 
   // ── main layout ───────────────────────────────────────────────────────────
 
+  const itemHints = {
+    select:    bindingLabel(bindings.selectItem),
+    selectAll: bindingLabel(bindings.selectAll),
+    move:      bindingLabel(bindings.moveItems),
+  };
+
   return (
     <Box height={appHeight} flexDirection="column">
-      {/* Notification banner — fixed 1-row slot, always present to prevent layout shifts */}
+      {/* Notification banner — fixed 1-row slot */}
       <Box height={NOTIF_H}>
         {notification && (
           <NotificationBar message={notification.msg} isError={notification.isError} />
@@ -469,13 +504,14 @@ export default function App() {
             selectedUuids={selectedUuids}
             height={itemsPanelH}
             isFocused={focus === 'items'}
+            hints={itemHints}
           />
           <ErrorLogPanel errors={errorLog} pulling={pulling} height={logH} />
         </Box>
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} />
+      <Footer focus={focus} bindings={bindings} />
     </Box>
   );
 }

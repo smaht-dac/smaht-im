@@ -218,6 +218,7 @@ export function ItemsPanel({
   selectedUuids,
   height,
   isFocused,
+  hints,
 }) {
   const items = itype?.items ?? [];
 
@@ -245,7 +246,11 @@ export function ItemsPanel({
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'green' : 'white'}>{title}</Text>
         {isFocused && (
-          <Text color="gray"> Space=sel  ctrl+a=all  m=move  Esc=clr</Text>
+          <Text color="gray">
+            {' '}{hints?.select ?? 'Space'}=sel{'  '}
+            {hints?.selectAll ?? 'ctrl+a'}=all{'  '}
+            {hints?.move ?? 'm'}=move{'  '}Esc=clr
+          </Text>
         )}
       </Box>
 

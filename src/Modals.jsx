@@ -6,6 +6,12 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { folderLabel } from './core.js';
+import {
+  DEFAULT_BINDINGS,
+  bindingLabel,
+  findCollision,
+  captureKey,
+} from './keybindings.js';
 
 // ── Shared layout ─────────────────────────────────────────────────────────────
 
@@ -427,40 +433,49 @@ export function DiffModal({ nameA, nameB, diff, onClose }) {
 
 // ── HelpModal ─────────────────────────────────────────────────────────────────
 
-const HELP_ROWS = [
-  ['Navigation', ''],
-  ['  ↑↓ / jk', 'Move within the focused panel'],
-  ['  Tab / l', 'Move focus: Folders → Types → Items'],
-  ['  Shift+Tab / h', 'Move focus in reverse'],
-  ['', ''],
-  ['Folders panel (left)', ''],
-  ['  c', 'Create new inserts folder'],
-  ['  e', 'Rename selected folder'],
-  ['  a', 'Load selected folder into working copy'],
-  ['  n', 'Snapshot — copy current working state to new folder'],
-  ['  d', 'Diff selected folder vs loaded folder'],
-  ['  Delete', 'Delete selected folder (with confirmation)'],
-  ['', ''],
-  ['Items panel (bottom-right)', ''],
-  ['  Space', 'Toggle item selection (multi-select)'],
-  ['  m', 'Move selected items to another folder'],
-  ['  ctrl+a', 'Select all items in the current type'],
-  ['  Esc', 'Clear all selections'],
-  ['', ''],
-  ['Global', ''],
-  ['  r', 'Refresh all folders from disk'],
-  ['  ?', 'Toggle this help'],
-  ['  q', 'Quit'],
-];
+function buildHelpRows(bindings) {
+  const b = (action) => '  ' + bindingLabel(bindings?.[action] ?? DEFAULT_BINDINGS[action]);
+  const selKey  = bindingLabel(bindings?.selectItem  ?? DEFAULT_BINDINGS.selectItem);
+  const loadKey = bindingLabel(bindings?.load        ?? DEFAULT_BINDINGS.load);
+  return [
+    ['Navigation', ''],
+    ['  ↑↓ / jk',      'Move within the focused panel'],
+    ['  Tab / l',       'Move focus: Folders → Types → Items'],
+    ['  Shift+Tab / h', 'Move focus in reverse'],
+    ['', ''],
+    ['Folders panel (left)', ''],
+    [b('newFolder'),                      'Create new inserts folder'],
+    [b('rename'),                         'Rename selected folder'],
+    [`  ${loadKey} / ${selKey}`,          'Load selected folder into working copy'],
+    [b('snapshot'),                       'Snapshot — copy current working state to new folder'],
+    [b('diff'),                           'Diff selected folder vs loaded folder'],
+    [b('deleteFolder'),                   'Delete selected folder (with confirmation)'],
+    ['', ''],
+    ['Items panel (bottom-right)', ''],
+    [`  ${selKey}`,                       'Toggle item selection (multi-select)'],
+    [b('moveItems'),                      'Move selected items to another folder'],
+    [b('selectAll'),                      'Select all items in the current type'],
+    ['  Esc',                             'Clear all selections'],
+    ['', ''],
+    ['Global', ''],
+    [b('refresh'),                        'Refresh all folders from disk'],
+    [b('help'),                           'Toggle this help'],
+    [b('editKeys'),                       'Edit keybindings'],
+    [b('quit'),                           'Quit'],
+  ];
+}
 
-export function HelpModal({ onClose }) {
+export function HelpModal({ bindings, onClose }) {
+  const helpKey = bindings?.help?.key ?? '?';
   useInput((input, key) => {
-    if (key.escape || input === 'q' || input === '?') onClose();
+    if (key.escape || input === 'q' || input === helpKey) onClose();
   });
+
+  const rows = buildHelpRows(bindings);
 
   return (
     <Dialog title="? Keyboard Shortcuts" titleColor="magenta" width={62}>
-      {HELP_ROWS.map(([key, desc], i) => (
+      {rows.map(([key, desc], i) => (
         <Box key={i}>
           {key === '' ? (
             <Box height={1} />
@@ -468,13 +483,109 @@ export function HelpModal({ onClose }) {
             <Text bold color="magenta">{key}</Text>
           ) : (
             <Box>
-              <Text color="cyan">{key.padEnd(14)}</Text>
+              <Text color="cyan">{key.padEnd(16)}</Text>
               <Text color="white">{desc}</Text>
             </Box>
           )}
         </Box>
       ))}
-      <ButtonBar buttons={[{ key: 'Esc / ? / q', label: 'Close', color: 'magenta' }]} />
+      <ButtonBar buttons={[{ key: 'Esc / q', label: 'Close', color: 'magenta' }]} />
+    </Dialog>
+  );
+}
+
+// ── KeybindingsModal ──────────────────────────────────────────────────────────
+
+export function KeybindingsModal({ bindings, onSave, onCancel }) {
+  const [local, setLocal] = useState(() =>
+    Object.fromEntries(Object.entries(bindings).map(([k, v]) => [k, { ...v }])),
+  );
+  const entries = Object.entries(local);
+  const [cursor,    setCursor]    = useState(0);
+  const [capturing, setCapturing] = useState(false);
+  const [error,     setError]     = useState(null);
+
+  useInput((input, key) => {
+    if (capturing) {
+      if (key.escape) { setCapturing(false); setError(null); return; }
+
+      const captured = captureKey(input, key);
+      if (!captured) {
+        setError('That key is reserved (Esc/Enter/Tab/Arrows) and cannot be bound.');
+        return;
+      }
+
+      const [action] = entries[cursor];
+      const collision = findCollision(local, action, captured.key, captured.ctrl);
+      if (collision) {
+        const [colAction] = collision;
+        const colLabel = DEFAULT_BINDINGS[colAction]?.label ?? colAction;
+        setError(`"${bindingLabel(captured)}" is already used by "${colLabel}". Choose a different key.`);
+        return;
+      }
+
+      setLocal(prev => ({
+        ...prev,
+        [action]: { ...prev[action], key: captured.key, ctrl: captured.ctrl },
+      }));
+      setCapturing(false);
+      setError(null);
+      return;
+    }
+
+    // List mode
+    if (key.escape)                           { onSave(local); return; }
+    if (key.upArrow   || input === 'k')       { setCursor(c => Math.max(0, c - 1)); setError(null); return; }
+    if (key.downArrow || input === 'j')       { setCursor(c => Math.min(entries.length - 1, c + 1)); setError(null); return; }
+    if (key.return)                           { setCapturing(true); setError(null); return; }
+    if (input === 'R') {
+      setLocal(Object.fromEntries(
+        Object.entries(DEFAULT_BINDINGS).map(([k, v]) => [k, { ...v }]),
+      ));
+      setError(null);
+      return;
+    }
+  });
+
+  return (
+    <Dialog title="⌨  Keybindings" titleColor="magenta" width={66}>
+      {entries.map(([action, binding], i) => {
+        const isActive = i === cursor;
+        const label = DEFAULT_BINDINGS[action]?.label ?? action;
+        return (
+          <Box key={action}>
+            <Text bold={isActive} color={isActive ? 'cyan' : 'gray'}>
+              {isActive ? '▶ ' : '  '}
+              {label.padEnd(24)}
+            </Text>
+            <Text bold={isActive} color={isActive && capturing ? 'yellow' : isActive ? 'white' : 'white'}>
+              {isActive && capturing
+                ? ' [ press a key… ]'
+                : (' ' + bindingLabel(binding)).padEnd(14)}
+            </Text>
+          </Box>
+        );
+      })}
+
+      {error ? (
+        <Box marginTop={1}>
+          <Text color="red">✗ {error}</Text>
+        </Box>
+      ) : (
+        <Box marginTop={1}>
+          <Text color="gray">
+            {capturing
+              ? 'Press any key to bind (Esc to cancel)'
+              : 'Enter to rebind  ·  R to reset defaults  ·  Esc to save & close'}
+          </Text>
+        </Box>
+      )}
+
+      <ButtonBar buttons={[
+        { key: 'Enter', label: 'Rebind',          color: capturing ? 'yellow' : 'green' },
+        { key: 'R',     label: 'Reset defaults',  color: 'yellow' },
+        { key: 'Esc',   label: 'Save & close',    color: 'cyan' },
+      ]} />
     </Dialog>
   );
 }
