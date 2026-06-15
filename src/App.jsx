@@ -240,12 +240,17 @@ export default function App() {
         try { switchFolder(newName); } catch (_) {}
 
         const lines = [];
+        let lastPullRender = 0; // throttle: max one setPulling per 200 ms
         const cmd = pullFolderAsync(
           env,
           query,
           (line) => {
             lines.push(line);
-            setPulling(line); // show latest progress line in spinner
+            const now = Date.now();
+            if (now - lastPullRender >= 200) {
+              setPulling(line);
+              lastPullRender = now;
+            }
           },
           (success) => {
             setPulling(null);
@@ -324,11 +329,10 @@ export default function App() {
 
   // ── layout math ───────────────────────────────────────────────────────────
 
-  // 1 header (from ink's render) + 1 footer bar + 1 notification bar
   const appHeight    = termHeight - 1; // stay below stdout.rows so Ink uses eraseLines not clearTerminal
   const footerHeight = 3;
-  const notifHeight  = notification ? 1 : 0;
-  const contentHeight = Math.max(8, appHeight - footerHeight - notifHeight);
+  const NOTIF_H      = 1; // always reserve 1 row — prevents height-change flicker on appear/disappear
+  const contentHeight = Math.max(8, appHeight - footerHeight - NOTIF_H);
 
   const overviewH    = 4;
   const logH         = 6;
@@ -413,10 +417,12 @@ export default function App() {
 
   return (
     <Box height={appHeight} flexDirection="column">
-      {/* Notification banner */}
-      {notification && (
-        <NotificationBar message={notification.msg} isError={notification.isError} />
-      )}
+      {/* Notification banner — fixed 1-row slot, always present to prevent layout shifts */}
+      <Box height={NOTIF_H}>
+        {notification && (
+          <NotificationBar message={notification.msg} isError={notification.isError} />
+        )}
+      </Box>
 
       {/* Main content row */}
       <Box flexGrow={1} flexDirection="row">
