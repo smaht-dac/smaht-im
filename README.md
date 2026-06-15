@@ -5,10 +5,91 @@ Two tools for managing smaht-portal inserts during local development:
 | Tool | Description |
 |------|-------------|
 | `im` | Command-line tool: pull, track, diff, and repull inserts |
-| `imc` | **TUI** (lazygit-style): browse folders, activate, snapshot, move items |
+| `imc` | **TUI** (lazygit-style): browse folders, load, snapshot, move items |
 
 All state (manifests, activation history) is stored in `~/.smaht-im/` — never
 committed to the portal repo.
+
+---
+
+## How it works
+
+Both tools operate on the same inserts directory inside your local smaht-portal checkout:
+
+```
+~/dbmi/smaht-portal/src/encoded/tests/data/
+  ├── master-inserts/             ← live portal data — never touched
+  ├── workbook-inserts/           ← live portal data — never touched
+  ├── temp-local-inserts/         ← working copy (what portal loads)
+  ├── temp-local-inserts-main/    ← named branch
+  ├── temp-local-inserts-devtest/ ← named branch
+  └── temp-local-inserts-staging/ ← named branch
+```
+
+### The branch model
+
+`imc` manages inserts folders like git branches. `temp-local-inserts/` is the
+**working copy** — the folder smaht-portal reads. Named folders
+(`temp-local-inserts-<name>/`) are branches you switch between.
+
+```
+                   [a] or Space load                [s] snapshot "devtest"
+temp-local-inserts-devtest  ──────►  temp-local-inserts  ──────►  temp-local-inserts-devtest
+       (branch)                          (working copy)                    (branch)
+```
+
+Full cycle: load a branch → edit or pull new data → snapshot back under a name.
+
+```
+temp-local-inserts-main
+        │
+        │  [a] or Space (in Folders panel)
+        ▼
+temp-local-inserts  (working copy — portal reads this)
+        │
+        │  im pull --type Tissue   (fetch new items from remote)
+        │
+        │  [s] snapshot "tissue-work"
+        ▼
+temp-local-inserts-tissue-work
+```
+
+### Pulling from the portal
+
+`im pull` fetches items from the remote portal into the working copy and saves a
+manifest so the same query can be replayed later with `im repull`.
+
+```
+smaht portal  (data / wolf / staging)
+      │
+      │  im pull --type Donor --env data
+      ▼
+temp-local-inserts/donor.json   +  ~/.smaht-im/temp-local-inserts.json  (manifest)
+      │
+      │  im repull donor                           (replays saved query)
+      ▼
+temp-local-inserts/donor.json   (refreshed)
+```
+
+### Moving items between folders
+
+Select items in the Items panel, then move them to any other folder.
+
+```
+temp-local-inserts-staging/donor.json  [4 donors]
+      │
+      │  [Space] mark 2 donors
+      │  [m] move  →  devtest
+      ▼
+temp-local-inserts-staging/donor.json  [2 donors]
+temp-local-inserts-devtest/donor.json  [+2 donors]
+```
+
+### Diffing folders
+
+```
+temp-local-inserts-devtest -- [d] diff --> side-by-side count table vs temp-local-inserts
+```
 
 ---
 
@@ -32,59 +113,120 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 │ │                                │ │    06c2197d-8cbc…  BCM1_DONOR_P1740         ││
 │ │                                │ │ ●  67ecc30b-3b71…  BCM1_DONOR_P5246  ←sel  ││
 │ └────────────────────────────────┘ └────────────────────────────────────────────┘│
-│ a:Activate  n:New Snap  m:Move  d:Diff  Del:Delete  r:Refresh  ?:Help  q:Quit   │
+│ [n] New  [r] Rename  [a] Load  [s] Snap  [m] Move  [d] Diff  [Del] Delete  [?]  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+`●` marks the currently loaded folder (HEAD). `✓` marks items selected with Space.
+
 ### Key actions
 
-| Key | Action |
-|-----|--------|
-| `a` | **Activate** selected folder — replaces `temp-local-inserts` contents |
-| `n` | **New snapshot** — copy active folder to a named `temp-local-inserts-<name>` |
-| `d` | **Diff** selected folder vs `temp-local-inserts` |
-| `Del` | Delete selected folder (with confirmation) |
-| `Space` | Toggle item selection in the Items panel |
-| `m` | **Move** selected items to another folder |
-| `ctrl+a` | Select all items in the current type |
-| `Esc` | Clear item selection |
-| `Tab` / `Shift+Tab` | Move focus between panels |
-| `r` | Refresh all folders from disk |
-| `?` | Help screen |
+| Key | Panel | Action |
+|-----|-------|--------|
+| `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
+| `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
+| `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
+| `n` | Folders | **New folder** — create an empty branch (optionally forked from an existing one) |
+| `r` | Folders | **Rename** selected folder |
+| `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
+| `Del` | Folders | Delete selected folder (with confirmation) |
+| `Space` | Items | Toggle item selection (multi-select) |
+| `m` | Items | **Move** selected items to another folder |
+| `ctrl+a` | Items | Select all items in the current type |
+| `Esc` | Items | Clear item selection |
+| `Tab` / `Shift+Tab` | Global | Move focus between panels |
+| `R` | Global | Refresh all folders from disk |
+| `K` | Global | Edit keybindings |
+| `?` | Global | Help screen |
+| `q` | Global | Quit |
 
-### Activate / snapshot workflow
-
-When you activate a folder, `imc` offers to save the current
-`temp-local-inserts` as a named snapshot first — so you never lose work.
+### Load / snapshot workflow
 
 ```
-[a] → ActivateModal
-  "Save current state as: my-work"   (optional)
-  [Activate]
-   → copies temp-local-inserts-devtest/ → temp-local-inserts/
-   → saves current as temp-local-inserts-my-work/  (if name provided)
-   → logs to ~/.smaht-im/activation-history.json
+[a] or Space on temp-local-inserts-devtest
+        │
+        ▼
+  copies devtest/ → temp-local-inserts/   (working copy updated)
+  HEAD = temp-local-inserts-devtest
+        │
+        │  (make changes, run im pull, etc.)
+        │
+[s] snapshot "devtest-v2"
+        │
+        ▼
+  copies temp-local-inserts/ → temp-local-inserts-devtest-v2/
 ```
+
+### Keybindings
+
+All action keys are configurable. Press `K` in the TUI to open the keybindings
+editor, or edit `~/.smaht-im/keybindings.json` directly.
+
+```
+[K] Keybindings editor
+  ▶ New folder            n          ← navigate with ↑↓ / jk
+    Rename folder         r
+    Load folder           a          ← press Enter to rebind
+    Snapshot working copy s          ← press R to reset all defaults
+    ...                              ← press Esc to save & close
+```
+
+The editor prevents collisions — if a key is already in use, it rejects the
+new binding and shows which action owns it. Reserved keys (Esc, Enter, Tab,
+arrow keys) can never be bound.
+
+Space is context-aware and cannot be separately configured per panel — whatever
+key is bound to "Toggle / load" acts as the load shortcut in the Folders panel
+and the selection toggle in the Items panel.
+
+Default keybindings:
+
+| Action | Key |
+|--------|-----|
+| New folder | `n` |
+| Rename | `r` |
+| Load folder | `a` / `Space` |
+| Snapshot | `s` |
+| Diff | `d` |
+| Delete folder | `Del` |
+| Move items | `m` |
+| Toggle / load | `Space` |
+| Select all | `ctrl+a` |
+| Refresh | `R` |
+| Edit keybindings | `K` |
+| Help | `?` |
+| Quit | `q` |
+
+---
 
 ### Setup
 
 ```bash
-# 1. Install dependency into your smaht virtualenv
-PYENV_VERSION=smaht311 pip install "textual>=0.61.0"
+# 1. Install dependencies
+cd ~/smaht-im && npm install
 
-# 2. Add alias to ~/.bashrc
-alias imc='PYENV_VERSION=smaht311 python ~/smaht-im/imc.py'
+# 2. Build
+npm run build
 
-# 3. Reload shell and run
+# 3. Add alias to ~/.bashrc
+alias imc='source ~/.nvm/nvm.sh && nvm use 24 --silent && node ~/smaht-im/dist/imc.js'
+
+# 4. Reload shell and run
 source ~/.bashrc
 imc
+```
+
+For development (auto-rebuild + auto-restart on save):
+
+```bash
+npm run dev
 ```
 
 ---
 
 ## im — CLI tool
 
-## Prerequisites
+### Prerequisites
 
 - **pyenv** installed and initialised in your shell profile
 - **smaht311** virtualenv exists with the following packages installed:
@@ -321,11 +463,16 @@ PYENV_VERSION=smaht311 pip install click requests
 
 ```
 ~/smaht-im/
-  im.py        — the script (this file is the entire tool)
+  im.py        — Python CLI (im)
+  src/         — Node.js TUI source (imc)
+  dist/        — built output (imc.js) — generated, not committed
   README.md    — this file
 
 ~/.smaht-im/
-  temp-local-inserts.json   — manifest per workspace
+  HEAD                          — currently loaded folder name
+  activation-history.json       — log of every load operation
+  keybindings.json              — custom key bindings (optional)
+  temp-local-inserts.json       — manifest per workspace
   my-workspace.json
   ...
 ```
