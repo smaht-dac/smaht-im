@@ -130,6 +130,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `Del` | Folders | Delete selected folder (with confirmation) |
+| `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
 | `ctrl+a` | Items | Select all items in the current type |
@@ -189,6 +190,7 @@ Default keybindings:
 | Snapshot | `s` |
 | Diff | `d` |
 | Delete folder | `Del` |
+| Export de-identified copy | `e` |
 | Move items | `m` |
 | Toggle / load | `Space` |
 | Select all | `ctrl+a` |
@@ -456,6 +458,72 @@ If either package is missing:
 ```bash
 PYENV_VERSION=smaht311 pip install click requests
 ```
+
+---
+
+---
+
+## Sharing inserts data safely
+
+Inserts pulled by `im pull` are real donor/sample/tissue records from the
+portal — not safe to paste into a bug report, attach to a ticket, or use as
+example data as-is.
+
+There are two equivalent ways to produce a de-identified copy of a
+`temp-local-inserts*` folder — same underlying implementation
+(`anonymizeFolder()` in `src/core.js`), pick whichever is more convenient.
+**Neither runs automatically** — both require you to explicitly ask for it.
+
+**From imc:** highlight a folder in the Folders panel and press `e`
+(Export de-identified copy). You'll be prompted for an export name and an
+optional seed, then the result is written to `~/smaht-im-exports/` — the
+working copy and every other folder are left untouched, and nothing is
+re-pulled, re-synced, or refreshed as a side effect.
+
+**From the command line:**
+
+```bash
+node scripts/anonymize-inserts.js temp-local-inserts-devtest ~/smaht-im-exports/devtest-anon --seed=ticket-1234
+```
+
+What it does:
+
+- Remaps every UUID consistently across **all** type files in the folder,
+  so links like `sample.donor -> donor.uuid` still resolve after
+  anonymizing.
+- Scrubs or fakes fields matched by name (`submitted_id`, `notes`,
+  `accession`, etc. — see `DEFAULT_POLICY` in the script, or override with
+  `--config=path/to/config.json`, starting from
+  `scripts/anonymize.config.example.json`).
+- Jitters date fields by a random +/- N days (`--jitter-days`, default 30).
+- **Shuffles** quasi-identifier columns (age, sex, race, cause of death,
+  etc.) across records of the same type — a real permutation of the
+  existing values, not fake data, so the aggregate distribution for that
+  type is unchanged but which value belongs to which record is broken.
+  Groups smaller than 5 records are redacted instead of shuffled, since
+  permuting a handful of values isn't real protection.
+- Writes a `_ANONYMIZATION_REPORT.json` alongside the output listing
+  exactly what happened to every field, for review before sharing.
+- Pass `--seed=<phrase>` for a fully reproducible run (same input + seed →
+  same output); omit it for a fresh random remap.
+
+Output goes to `~/smaht-im-exports/` by default — outside the portal's
+inserts directory, so it's never mistaken for a working `temp-local-inserts*`
+branch.
+
+**Limits — read before sharing anything:**
+
+- Only the JSON insert records are touched. Any sequence/genotype files
+  referenced by these records are not de-identified by this script.
+- Small cohorts stay re-identifiable to someone who already knows something
+  about them, regardless of shuffling — this reduces risk, it doesn't
+  guarantee anonymity.
+- The default field-name policy is a generic guess. Review and extend it
+  against the real SMaHT schema (`--config`) before trusting it.
+- This is engineering hardening, not a compliance decision. Route real
+  donor-derived data through Harvard/SMaHT data governance (DUA, DAC
+  approval, IRB as applicable) before it leaves the team, regardless of
+  what this script does to it.
 
 ---
 

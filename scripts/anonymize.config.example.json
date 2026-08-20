@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy to anonymize.config.json and tune against the real SMaHT schema, then pass --config=path/to/this/file. Any key you omit falls back to the script's DEFAULT_POLICY.",
+
+  "scrub": [
+    "submitted_id", "external_id", "identifier", "identifiers", "aliases",
+    "alias", "description", "notes", "comment", "comments", "submitted_by",
+    "notes_to_dcc", "consent_id", "protocol_id", "contact", "email"
+  ],
+
+  "fakeSequential": ["accession"],
+
+  "jitterDates": [
+    "date_created", "last_modified", "submitted_date", "date_collected",
+    "date_obtained", "date_of_death"
+  ],
+
+  "shuffleAcrossRecords": [
+    "age", "age_at_death", "sex", "gender", "race", "ethnicity",
+    "cause_of_death", "height", "weight", "bmi", "ancestry",
+    "tissue_type", "collection_site"
+  ],
+
+  "minGroupSizeForShuffle": 5
+}
