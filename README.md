@@ -181,7 +181,7 @@ editor, or edit `~/.smaht-im/keybindings.json` directly.
     Rename folder         r
     Load folder           a          ← press Enter to rebind
     Snapshot working copy s          ← press R to reset all defaults
-    ...                              ← press Esc to save & close
+    ...                              ← press s to save & close, Esc to cancel
 ```
 
 The editor prevents collisions — if a key is already in use, it rejects the

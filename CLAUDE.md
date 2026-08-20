@@ -139,6 +139,8 @@ export function MyModal({ ...props, onConfirm, onCancel }) {
 In `App.jsx`:
 - Add `modal === 'mymodal'` to the modal render block
 - Add a `handleMyAction` function that calls `setModal(null)`, runs the operation, calls `notify()`, then `refresh()`
+
+**Esc must always be `onCancel`, never a save/confirm action** — even for a modal that's a multi-step editing session rather than a single yes/no prompt. `KeybindingsModal` used to route `key.escape` to `onSave(local)` (no true cancel existed), which meant a session with a stale in-memory copy of `bindings` (e.g. left open while the file changed some other way) would silently clobber the newer file contents on close. Fixed by giving it a dedicated `s` = save-and-close, matching every other modal's `Esc` = cancel.
 - Pass `onConfirm={handleMyAction} onCancel={() => setModal(null)}`
 
 ## core.js conventions

@@ -751,7 +751,8 @@ export function KeybindingsModal({ bindings, onSave, onCancel }) {
     }
 
     // List mode
-    if (key.escape)                           { onSave(local); return; }
+    if (key.escape)                           { onCancel(); return; }
+    if (input === 's')                        { onSave(local); return; }
     if (key.upArrow   || input === 'k')       { setCursor(c => Math.max(0, c - 1)); setError(null); return; }
     if (key.downArrow || input === 'j')       { setCursor(c => Math.min(entries.length - 1, c + 1)); setError(null); return; }
     if (key.return)                           { setCapturing(true); setError(null); return; }
@@ -793,7 +794,7 @@ export function KeybindingsModal({ bindings, onSave, onCancel }) {
           <Text color="gray">
             {capturing
               ? 'Press any key to bind (Esc to cancel)'
-              : 'Enter to rebind  ·  R to reset defaults  ·  Esc to save & close'}
+              : 'Enter to rebind  ·  R to reset defaults  ·  s to save & close  ·  Esc to cancel'}
           </Text>
         </Box>
       )}
@@ -801,7 +802,8 @@ export function KeybindingsModal({ bindings, onSave, onCancel }) {
       <ButtonBar buttons={[
         { key: 'Enter', label: 'Rebind',          color: capturing ? 'yellow' : 'green' },
         { key: 'R',     label: 'Reset defaults',  color: 'yellow' },
-        { key: 'Esc',   label: 'Save & close',    color: 'cyan' },
+        { key: 's',     label: 'Save & close',    color: 'green' },
+        { key: 'Esc',   label: 'Cancel',          color: 'red' },
       ]} />
     </Dialog>
   );

@@ -83,6 +83,7 @@ function Footer({ focus, bindings, pulling }) {
     { key: bindingLabel(kb.expandLog),    desc: 'Log',     active: true },
     { key: bindingLabel(kb.viewFullLog),  desc: 'Full Log', active: true },
     { key: bindingLabel(kb.refresh),      desc: 'Refresh', active: true },
+    { key: bindingLabel(kb.editKeys),     desc: 'Keys',    active: true },
     { key: bindingLabel(kb.help),         desc: 'Help',    active: true },
     { key: bindingLabel(kb.quit),         desc: 'Quit',    active: true },
     { key: 'Tab',                         desc: 'Panel',   active: true },
