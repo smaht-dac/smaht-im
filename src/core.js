@@ -270,7 +270,9 @@ export function switchFolder(targetName) {
 // ── create branch ────────────────────────────────────────────────────────────
 
 /**
- * Create a new empty branch (or copy json files from baseBranch).
+ * Create a new branch: empty (a single placeholder empty-array file — see
+ * inline comment below for why not zero files) if no baseBranch is given,
+ * otherwise a copy of baseBranch's json files.
  * Returns the full folder name (INSERT_PREFIX + '-' + slug).
  */
 export function createFolder(name, baseBranch = null) {
@@ -288,6 +290,16 @@ export function createFolder(name, baseBranch = null) {
     for (const f of fs.readdirSync(basePath).filter(n => n.endsWith('.json'))) {
       fs.copyFileSync(path.join(basePath, f), path.join(newPath, f));
     }
+  } else {
+    // A directory with zero .json files isn't actually "empty" once loaded —
+    // snovault's load_local_data() only checks temp-local-inserts for *any*
+    // .json file; find none, and it silently falls back to demo_inserts or
+    // the real inserts/ fixtures instead (confirmed by reading loadxl.py).
+    // One placeholder empty-array file satisfies that check and keeps this
+    // folder genuinely empty. The type name doesn't matter (loadxl discovers
+    // types dynamically; an empty list is a no-op regardless), but a real
+    // registered type avoids relying on that for a type it's never checked.
+    writeJson(path.join(newPath, 'donor.json'), []);
   }
 
   return fullName;
