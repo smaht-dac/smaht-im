@@ -170,12 +170,12 @@ In `App.jsx`:
 The TUI fills the full terminal. Heights are calculated from `stdout.rows`:
 ```
 contentHeight = termHeight - footerHeight(3) - notifHeight(0 or 1)
-rowH          = contentHeight - overviewH(6) - logH(6)
+rowH          = contentHeight - overviewH(8) - logH(6)
 ```
 
 The right column is Overview (fixed height) → a `Types | Items` row (both get `rowH`) → the error log (fixed height). Types and Items sit side by side rather than stacked: `TypePanel` sizes its own width to its content (longest `name.json [count]` row, clamped 24-44 cols) so it no longer stretches to fill the row the way a bare `flexGrow` box would; `ItemsPanel` takes `flexGrow={1}` to fill whatever width is left. This also matches the `h`/`l` focus-cycle order (Folders → Types → Items), which is left-to-right.
 
-`OverviewPanel` (`Panels.jsx`) stacks one label/value row per fact (`Last pulled`, `Items`, `Env(s)`) via a shared `OverviewRow` helper that pads labels to a fixed width for column alignment, rather than cramming them side by side — `overviewH` accounts for the title row + 3 data rows + 2 border rows. `Env(s)` comes from `getFolderEnvs(folderName)` in `core.js`, which reads the manifest (`loadBranchMeta`) and collects distinct `env` values across per-type entries (newest `last_pulled` first) falling back to `__tracking__.env` if no per-type entry has one — a folder can genuinely show multiple envs if its data came from more than one over time.
+`OverviewPanel` (`Panels.jsx`) stacks one label/value row per fact (`Last pulled`, `Items`, `Env(s)`, `Query`) via a shared `OverviewRow` helper that pads labels to a fixed width for column alignment, rather than cramming them side by side, plus a conditional hint line below them — `overviewH` accounts for the title row + 4 data rows + 1 hint row + 2 border rows. `Env(s)` comes from `getFolderEnvs(folderName)` in `core.js`, which reads the manifest (`loadBranchMeta`) and collects distinct `env` values across per-type entries (newest `last_pulled` first) falling back to `__tracking__.env` if no per-type entry has one — a folder can genuinely show multiple envs if its data came from more than one over time. `Query` is the folder's effective tracking query via the new `getFolderTracking(folderName)` in `core.js` (extracted from what were previously duplicate inline IIFEs in `App.jsx`/`syncFolderAsync` — same "first per-type entry, else `__tracking__`" logic). The hint row renders `This folder is missing N inserts available on the live portal — press <sync key> to pull them down` whenever the folder's cached remote check has `behind > 0`, and is blank otherwise — reserved as a fixed row rather than conditionally resizing the panel, consistent with this app's fixed-height layout model. It deliberately only reads `behind`, never `ahead` — see the "Indicator column" note above on why `ahead` isn't trustworthy enough to surface.
 
 Each panel subtracts its border rows from height before computing `visibleWindow`. If you add a new row to a panel's header, reduce `innerHeight` by 1 to compensate.
 
@@ -211,9 +211,11 @@ Each folder can be "tracked" against a portal environment. Staleness is detected
 **Indicator column** in FolderPanel (rightmost, before age):
 - `~` = checking / no result yet
 - `?` = no manifest and no `__tracking__` set
-- `✓` = UUID sets match
-- `↓N↑M` = N new in portal, M local not in portal (yellow)
+- `✓` = nothing new on the portal (`behind === 0`)
+- `↓N` = N items on the portal not present locally (yellow)
 - `!` = fetch error (red)
+
+`checkRemoteAsync` also computes `ahead` (local UUIDs not returned by the tracking query) and stores it in `__remote_cache__`, but `remoteIndicator` (`Panels.jsx`) deliberately never displays it. A folder's tracking query is often narrower than everything it locally holds — e.g. type-filtered while transitively-pulled linked types (`SubmissionCenter`, etc.) sit alongside — so `ahead` routinely counts items that could never match the query, not genuinely stale ones. Surfacing it reads as "42 things are wrong" when the real number is often much smaller or zero.
 
 **Key bindings** (configurable via keybindings system):
 - `f` = sync (context-aware: folder or item)
@@ -241,6 +243,8 @@ Each folder can be "tracked" against a portal environment. Staleness is detected
 **App.jsx state:** a single `pullState` object (`{ kind, target, cmd, kill, lastLine, done, success, killed }`) replaces what used to be a bare `pulling` string — only one pull/sync runs at a time. The full output buffer lives in a separate `pullLinesRef` (not in state, to avoid an array copy on every throttled render); `startPull`/`onPullLine`/`finishPull` in `App.jsx` are the only places that should touch either. `ErrorLogPanel`/`ErrorLogModal` still take a plain string — pass `pullingLine` (derived: `pullState && !pullState.done ? pullState.lastLine : null`), not `pullState` itself.
 
 **Full output + cancel** — `p` (`viewPull`) opens `PullLogModal` (`Modals.jsx`, reuses the same private `LogViewer`/`useLogLayout` as `ErrorLogModal`/`FullLogModal`) showing the complete scrollable output of the current/last pull; `x` (`cancelPull`) kills an in-flight one, from the main view or from inside the modal. **Footer note:** these two entries are only added to `Footer`'s `actions` array while `pulling` is true (not just dimmed via `active` — actually absent) — the footer already wraps at common widths with its ~17 baseline entries (see "Layout math"), so don't make them permanent for a feature that only matters during the small fraction of time a pull is running.
+
+**Keeping the working copy in sync when the loaded folder is the sync target** — `syncFolderAsync`/`pullBatchIntoFolderAsync`/`syncItemAsync`/`restoreBackup`/`moveItems` all write to a named folder via `resolveFolderPath(folderName)`, never to `temp-local-inserts` directly. If `folderName` happens to be the currently loaded folder (a branch, not the literal `ACTIVE_FOLDER`), that write left the working copy holding stale pre-write data — and the very next `loadAllFolders()` treated that mismatch as an external edit, auto-snapshotting the *stale* data into a spurious new folder and reassigning `HEAD` to it (confirmed by reproducing: pressing `f` to sync the loaded folder produced a decoy folder containing the pre-sync contents). Fixed with a private `refreshWorkingCopyIfActive(folderName)` in `core.js` (right after `workingCopyMatchesFolder`) that mirrors the folder's on-disk content into the working copy whenever it's a no-op check away from being live — called at the end of every one of those five write paths, including the partial-failure branch of `pullBatchIntoFolderAsync` (earlier queries in a batch may have already merged data before a later one failed).
 
 ## Sync results & backup history
 

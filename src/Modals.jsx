@@ -822,7 +822,11 @@ export function SyncFolderModal({ folder, onConfirm, onCancel }) {
   return (
     <Dialog title={`↓  Sync '${label}' from portal`} titleColor="yellow" width={62}>
       <Text color="gray">Re-pull all tracked types into this folder.</Text>
-      <Text color="gray">The working copy and other folders are not changed.</Text>
+      <Text color="gray">
+        {folder.isActive
+          ? 'This folder is currently loaded — the working copy is refreshed too.'
+          : 'Other folders are not changed.'}
+      </Text>
       <Box height={1} />
       <Text color="white">Folder: <Text bold color="yellow">{label}</Text></Text>
       <Text color="white">Items:  <Text color="gray">{folder.totalItems}</Text></Text>

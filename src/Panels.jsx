@@ -50,16 +50,21 @@ function relativeTime(d) {
 
 // ── FolderPanel ───────────────────────────────────────────────────────────────
 
-/** Return indicator text and color for a remote status entry. */
+/**
+ * Return indicator text and color for a remote status entry. Only "behind"
+ * (items on the portal that aren't local) is shown — "ahead" (local UUIDs
+ * absent from the portal query) is computed but deliberately not surfaced:
+ * a folder's tracking query is often narrower than everything it locally
+ * holds (e.g. type-filtered while transitively-pulled linked types sit
+ * alongside), so "ahead" routinely counts items that could never match the
+ * query rather than genuinely stale ones — misleading more often than not.
+ */
 function remoteIndicator(rs) {
   if (!rs || rs.status === 'checking') return { text: '~',  color: 'gray'  };
   if (rs.status === 'untracked')       return { text: '?',  color: 'gray'  };
   if (rs.status === 'error')           return { text: '!',  color: 'red'   };
-  if (rs.behind === 0 && rs.ahead === 0) return { text: '✓', color: 'green' };
-  const parts = [];
-  if (rs.behind > 0) parts.push(`↓${rs.behind}`);
-  if (rs.ahead  > 0) parts.push(`↑${rs.ahead}`);
-  return { text: parts.join(''), color: 'yellow' };
+  if (rs.behind === 0) return { text: '✓', color: 'green' };
+  return { text: `↓${rs.behind}`, color: 'yellow' };
 }
 
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus }) {
@@ -71,9 +76,9 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   });
 
   // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(9) + age(4) = 29
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(4) + age(4) = 24
   const DATE_W   = 4;
-  const REMOTE_W = 9; // "↓999↑99" worst case
+  const REMOTE_W = 4; // "↓999" worst case
   const overhead  = 20 + DATE_W + REMOTE_W;
   const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
   const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
@@ -146,11 +151,15 @@ function OverviewRow({ label, value }) {
   );
 }
 
-export function OverviewPanel({ folder, envs, height }) {
+export function OverviewPanel({ folder, envs, query, behind, syncKey, height }) {
   const label       = folder ? folderLabel(folder.name) : null;
   const lastUpdated = fmtFullDate(folder?.lastUpdated ?? null);
   const items       = folder ? String(folder.totalItems) : '—';
   const envsText    = envs && envs.length ? envs.join(', ') : '—';
+  const queryText   = query || '—';
+  const missing     = behind > 0
+    ? `This folder is missing ${behind} insert${behind !== 1 ? 's' : ''} available on the live portal — press ${syncKey} to pull ${behind !== 1 ? 'them' : 'it'} down.`
+    : '';
 
   return (
     <Box
@@ -167,6 +176,10 @@ export function OverviewPanel({ folder, envs, height }) {
         <OverviewRow label="Last pulled" value={lastUpdated} />
         <OverviewRow label="Items" value={items} />
         <OverviewRow label="Env(s)" value={envsText} />
+        <OverviewRow label="Query" value={queryText} />
+        <Box>
+          <Text color="yellow">{missing}</Text>
+        </Box>
       </Box>
     </Box>
   );

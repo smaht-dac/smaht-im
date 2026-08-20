@@ -21,6 +21,7 @@ import {
   loadBranchMeta,
   saveBranchMeta,
   getFolderEnvs,
+  getFolderTracking,
   loadEnvAuth,
   checkRemoteAsync,
   syncFolderAsync,
@@ -149,6 +150,9 @@ export default function App() {
   const currentItems  = currentType?.items ?? [];
   const activeFolder  = folders.find(f => f.isActive) ?? null;
   const currentFolderEnvs = currentFolder ? getFolderEnvs(currentFolder.name) : [];
+  const currentFolderQuery = currentFolder ? getFolderTracking(currentFolder.name)?.query ?? null : null;
+  const currentRemoteStatus = currentFolder ? remoteStatus.get(currentFolder.name) : null;
+  const currentFolderBehind = currentRemoteStatus?.status === 'ok' ? currentRemoteStatus.behind : 0;
   const isPulling     = !!pullState && !pullState.done;
   const pullingLine   = isPulling ? pullState.lastLine : null; // compact spinner display — hidden once done
 
@@ -572,9 +576,7 @@ export default function App() {
   const handleSyncItem = () => {
     setModal(null);
     const item   = currentItems[itemIdx];
-    const meta   = loadBranchMeta(currentFolder.name);
-    const typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
-    const env        = (typeKeys.length > 0 ? meta[typeKeys[0]]?.env : meta.__tracking__?.env) ?? 'data';
+    const env        = getFolderTracking(currentFolder.name)?.env ?? 'data';
     const folderName = currentFolder.name;
     notify(`Refreshing item from ${env}...`);
     syncItemAsync(folderName, currentType.name, item.uuid, env, (ok, msg, changes) => {
@@ -630,7 +632,7 @@ export default function App() {
   const NOTIF_H      = 1;
   const contentHeight = Math.max(8, appHeight - footerHeight - NOTIF_H);
 
-  const overviewH = 6;
+  const overviewH = 8;
   const logH      = 6;
   const rowH      = contentHeight - overviewH - logH;
 
@@ -652,11 +654,7 @@ export default function App() {
         ].sort((a, b) => b.id.localeCompare(a.id))
       : null;
     const currentTrackingQuery = modal === 'pull-more' && currentFolder
-      ? (() => {
-          const meta = loadBranchMeta(currentFolder.name);
-          const typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
-          return typeKeys.length > 0 ? meta[typeKeys[0]] : meta.__tracking__;
-        })()
+      ? getFolderTracking(currentFolder.name)
       : null;
     const dstFolders = modal === 'move'
       ? folders.filter(f => f.name !== currentFolder?.name)
@@ -734,11 +732,7 @@ export default function App() {
             item={currentItems[itemIdx]}
             typeName={currentType.name}
             folderName={currentFolder.name}
-            env={(() => {
-              const meta = loadBranchMeta(currentFolder.name);
-              const tk = Object.keys(meta).filter(k => !k.startsWith('__'));
-              return (tk.length > 0 ? meta[tk[0]]?.env : meta.__tracking__?.env) ?? 'data';
-            })()}
+            env={getFolderTracking(currentFolder.name)?.env ?? 'data'}
             onConfirm={handleSyncItem}
             onCancel={() => setModal(null)}
           />
@@ -858,6 +852,9 @@ export default function App() {
           <OverviewPanel
             folder={currentFolder}
             envs={currentFolderEnvs}
+            query={currentFolderQuery}
+            behind={currentFolderBehind}
+            syncKey={bindingLabel(bindings.sync)}
             height={overviewH}
           />
           <Box flexDirection="row" height={rowH}>

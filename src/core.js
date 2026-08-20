@@ -160,6 +160,31 @@ function workingCopyMatchesFolder(folderName) {
   return true;
 }
 
+/**
+ * If `folderName` is a BRANCH that also happens to be the currently loaded
+ * folder, mirror its on-disk content into the working copy. Every function
+ * below that mutates a named folder in place (sync, pull-more, item sync,
+ * restore, move) writes only to that folder's own directory via
+ * resolveFolderPath — never to temp-local-inserts — so without this, syncing
+ * the loaded folder leaves the working copy holding stale pre-sync data.
+ * The very next loadAllFolders() then sees that mismatch and treats it as an
+ * external edit, auto-snapshotting the STALE data into a spurious new folder
+ * (see the auto-snapshot-on-divergence comment on loadAllFolders below).
+ */
+function refreshWorkingCopyIfActive(folderName) {
+  if (folderName === ACTIVE_FOLDER) return;
+  if (getLoadedFolder() !== folderName) return;
+  const srcPath = resolveFolderPath(folderName);
+  const dstPath = resolveFolderPath(ACTIVE_FOLDER);
+  fs.mkdirSync(dstPath, { recursive: true });
+  for (const f of fs.readdirSync(dstPath).filter(n => n.endsWith('.json'))) {
+    fs.unlinkSync(path.join(dstPath, f));
+  }
+  for (const f of fs.readdirSync(srcPath).filter(n => n.endsWith('.json'))) {
+    fs.copyFileSync(path.join(srcPath, f), path.join(dstPath, f));
+  }
+}
+
 /** Generate a unique folder name based on the current local date-time. */
 function timestampFolderName() {
   const d   = new Date();
@@ -481,6 +506,8 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   fs.mkdirSync(resolveFolderPath(dstName), { recursive: true });
   writeJson(srcFile, remaining);
   writeJson(dstFile, [...dstAll, ...newItems]);
+  refreshWorkingCopyIfActive(srcName);
+  refreshWorkingCopyIfActive(dstName);
 
   const moved = newItems.length;
   let message = `Moved ${moved} item${moved !== 1 ? 's' : ''} → '${dstName}/${typeName}.json'`;
@@ -610,6 +637,7 @@ export function restoreBackup(folderName, backupId) {
   for (const f of fs.readdirSync(backupDir).filter(n => n.endsWith('.json') && n !== BACKUP_META_FILE)) {
     fs.copyFileSync(path.join(backupDir, f), path.join(destPath, f));
   }
+  refreshWorkingCopyIfActive(folderName);
   return `Restored '${folderLabel(folderName)}' to backup from ${backupId}`;
 }
 
@@ -646,6 +674,18 @@ export function getFolderEnvs(folderName) {
   const envs = [...new Set(entries.map(([, v]) => v.env))];
   if (envs.length === 0 && meta.__tracking__?.env) envs.push(meta.__tracking__.env);
   return envs;
+}
+
+/**
+ * The effective tracking entry for a folder: the first per-type entry
+ * written by im.py if one exists, else the manual __tracking__ entry set
+ * via `t` or on folder creation. Returns null if neither exists.
+ */
+export function getFolderTracking(folderName) {
+  const meta = loadBranchMeta(folderName);
+  const typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
+  const entry = typeKeys.length > 0 ? meta[typeKeys[0]] : meta.__tracking__;
+  return entry ?? null;
 }
 
 /**
@@ -735,9 +775,7 @@ export function checkRemoteAsync(folderName, onProgress) {
  * Returns { cmd, kill() } so the caller can cancel an in-flight sync.
  */
 export function syncFolderAsync(folderName, onLine, onDone) {
-  const meta     = loadBranchMeta(folderName);
-  const typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
-  const entry    = typeKeys.length > 0 ? meta[typeKeys[0]] : meta.__tracking__;
+  const entry    = getFolderTracking(folderName);
   const env      = entry?.env ?? 'data';
   const query    = entry?.query ?? '';
   if (!query) { onDone(false, 'No tracking query — press t to set one', null, {}); return { cmd: null, kill() {} }; }
@@ -747,7 +785,10 @@ export function syncFolderAsync(folderName, onLine, onDone) {
 
   const folderPath = resolveFolderPath(folderName);
   return spawnUpdateInsertsAsync({ env, query, dest: folderPath }, onLine, (result) => {
-    if (result.success) saveBranchMeta(folderName, { __remote_cache__: null });
+    if (result.success) {
+      saveBranchMeta(folderName, { __remote_cache__: null });
+      refreshWorkingCopyIfActive(folderName);
+    }
     const diff = result.success ? diffFolderObjects(before, loadFolder(folderName)) : null;
     const msg  = result.killed ? 'Sync cancelled' : (result.success ? 'Sync complete' : 'Sync failed');
     onDone(result.success, msg, diff, result);
@@ -794,6 +835,9 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
     onQuery(i, list.length, list[i]);
     const { kill } = spawnUpdateInsertsAsync({ env, query: list[i], dest: folderPath }, onLine, (result) => {
       if (!result.success) {
+        // Earlier queries in the batch may have already merged data into
+        // folderPath before this one failed — refresh regardless of i.
+        refreshWorkingCopyIfActive(folderName);
         const diff = diffFolderObjects(before, loadFolder(folderName));
         onDone({ success: false, killed: result.killed, ranCount: i, totalCount: list.length, failedQuery: list[i], diff });
         return;
@@ -803,6 +847,7 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
         return;
       }
       saveBranchMeta(folderName, { __remote_cache__: null });
+      refreshWorkingCopyIfActive(folderName);
       const diff = diffFolderObjects(before, loadFolder(folderName));
       onDone({ success: true, killed: false, ranCount: list.length, totalCount: list.length, failedQuery: null, diff });
     });
@@ -842,6 +887,7 @@ export function syncItemAsync(folderName, typeName, uuid, env, onDone) {
       const before = items[idx];
       items[idx] = fresh;
       writeJson(filePath, items);
+      refreshWorkingCopyIfActive(folderName);
 
       onDone(true, `Item refreshed from ${env} portal`, diffItemFields(before, fresh));
     })
