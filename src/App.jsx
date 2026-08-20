@@ -71,6 +71,7 @@ function Footer({ focus, bindings, pulling }) {
   const kb = bindings;
   const actions = [
     { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
+    { key: bindingLabel(kb.newEmptyFolder), desc: 'New Empty', active: true },
     { key: bindingLabel(kb.rename),       desc: 'Rename',  active: focus === 'folders' },
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
@@ -261,6 +262,11 @@ export default function App() {
     }
     if (matches(bindings.newFolder, input, key)) {
       setModal(focus === 'folders' && currentFolder ? `new-branch:${currentFolder.name}` : 'new-branch');
+      return;
+    }
+    if (matches(bindings.newEmptyFolder, input, key)) {
+      // No preset base — NewFolderModal defaults its "From" field to (none).
+      setModal('new-branch');
       return;
     }
 

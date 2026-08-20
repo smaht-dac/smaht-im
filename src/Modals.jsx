@@ -471,6 +471,7 @@ function buildHelpRows(bindings) {
     ['', ''],
     ['Folders panel (left)', ''],
     [b('newFolder'),                      'Create new inserts folder'],
+    [b('newEmptyFolder'),                 'Create new inserts folder, defaulting to an empty base'],
     [b('rename'),                         'Rename selected folder'],
     [`  ${loadKey} / ${selKey}`,          'Load selected folder into working copy'],
     [b('snapshot'),                       'Snapshot — copy current working state to new folder'],

@@ -17,6 +17,7 @@ export const DEFAULT_BINDINGS = {
   refresh:      { key: 'R',      ctrl: false, label: 'Refresh from disk' },
   editKeys:     { key: 'K',      ctrl: false, label: 'Edit keybindings' },
   newFolder:    { key: 'n',      ctrl: false, label: 'New folder' },
+  newEmptyFolder: { key: 'N',    ctrl: false, label: 'New folder (empty base)' },
   rename:       { key: 'r',      ctrl: false, label: 'Rename folder' },
   load:         { key: 'a',      ctrl: false, label: 'Load folder' },
   snapshot:     { key: 's',      ctrl: false, label: 'Snapshot working copy' },

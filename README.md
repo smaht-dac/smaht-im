@@ -138,7 +138,8 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
-| `n` | Folders | **New folder** — create an empty branch (optionally forked from an existing one) |
+| `n` | Folders | **New folder** — create a branch (optionally forked from an existing one) |
+| `N` | Folders | **New empty folder** — same as `n`, but defaults the base to `(none)` |
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
@@ -197,6 +198,7 @@ Default keybindings:
 | Action | Key |
 |--------|-----|
 | New folder | `n` |
+| New folder (empty base) | `N` |
 | Rename | `r` |
 | Load folder | `a` / `Space` |
 | Snapshot | `s` |
