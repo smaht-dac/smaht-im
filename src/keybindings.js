@@ -21,7 +21,7 @@ export const DEFAULT_BINDINGS = {
   load:         { key: 'a',      ctrl: false, label: 'Load folder' },
   snapshot:     { key: 's',      ctrl: false, label: 'Snapshot working copy' },
   diff:         { key: 'd',      ctrl: false, label: 'Diff folder' },
-  deleteFolder: { key: 'Delete', ctrl: false, label: 'Delete folder' },
+  deleteFolder: { key: 'D',      ctrl: false, label: 'Delete folder' },
   moveItems:    { key: 'm',      ctrl: false, label: 'Move items' },
   selectItem:   { key: ' ',      ctrl: false, label: 'Toggle / load (context-aware)' },
   selectAll:    { key: 'a',      ctrl: true,  label: 'Select all items' },

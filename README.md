@@ -125,7 +125,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 │ │                                │ │    06c2197d-8cbc…  BCM1_DONOR_P1740         ││
 │ │                                │ │ ●  67ecc30b-3b71…  BCM1_DONOR_P5246  ←sel  ││
 │ └────────────────────────────────┘ └────────────────────────────────────────────┘│
-│ [n] New  [r] Rename  [a] Load  [s] Snap  [m] Move  [d] Diff  [Del] Delete  [?]  │
+│ [n] New  [r] Rename  [a] Load  [s] Snap  [m] Move  [d] Diff  [D] Delete  [?]   │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -141,7 +141,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `n` | Folders | **New folder** — create an empty branch (optionally forked from an existing one) |
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
-| `Del` | Folders | Delete selected folder (with confirmation) |
+| `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
@@ -201,7 +201,7 @@ Default keybindings:
 | Load folder | `a` / `Space` |
 | Snapshot | `s` |
 | Diff | `d` |
-| Delete folder | `Del` |
+| Delete folder | `D` |
 | Export de-identified copy | `e` |
 | Move items | `m` |
 | Toggle / load | `Space` |
