@@ -633,6 +633,22 @@ export function saveBranchMeta(folderName, updates) {
 }
 
 /**
+ * Distinct portal envs a folder's data came from, newest-pull first.
+ * Per-type entries can each carry a different env (data pulled from one env,
+ * more added from another later), so this is a set, not a single value.
+ */
+export function getFolderEnvs(folderName) {
+  const meta = loadBranchMeta(folderName);
+  const entries = Object.entries(meta)
+    .filter(([key]) => !key.startsWith('__'))
+    .filter(([, v]) => v && v.env);
+  entries.sort((a, b) => new Date(b[1].last_pulled || 0) - new Date(a[1].last_pulled || 0));
+  const envs = [...new Set(entries.map(([, v]) => v.env))];
+  if (envs.length === 0 && meta.__tracking__?.env) envs.push(meta.__tracking__.env);
+  return envs;
+}
+
+/**
  * Return { key, secret, server } for env from ~/.smaht-keys.json, or null.
  * The server field is the full base URL (e.g. "https://data.smaht.org").
  */

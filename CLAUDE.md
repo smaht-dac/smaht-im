@@ -170,10 +170,12 @@ In `App.jsx`:
 The TUI fills the full terminal. Heights are calculated from `stdout.rows`:
 ```
 contentHeight = termHeight - footerHeight(3) - notifHeight(0 or 1)
-rowH          = contentHeight - overviewH(4) - logH(6)
+rowH          = contentHeight - overviewH(6) - logH(6)
 ```
 
 The right column is Overview (fixed height) → a `Types | Items` row (both get `rowH`) → the error log (fixed height). Types and Items sit side by side rather than stacked: `TypePanel` sizes its own width to its content (longest `name.json [count]` row, clamped 24-44 cols) so it no longer stretches to fill the row the way a bare `flexGrow` box would; `ItemsPanel` takes `flexGrow={1}` to fill whatever width is left. This also matches the `h`/`l` focus-cycle order (Folders → Types → Items), which is left-to-right.
+
+`OverviewPanel` (`Panels.jsx`) stacks one label/value row per fact (`Last pulled`, `Items`, `Env(s)`) via a shared `OverviewRow` helper that pads labels to a fixed width for column alignment, rather than cramming them side by side — `overviewH` accounts for the title row + 3 data rows + 2 border rows. `Env(s)` comes from `getFolderEnvs(folderName)` in `core.js`, which reads the manifest (`loadBranchMeta`) and collects distinct `env` values across per-type entries (newest `last_pulled` first) falling back to `__tracking__.env` if no per-type entry has one — a folder can genuinely show multiple envs if its data came from more than one over time.
 
 Each panel subtracts its border rows from height before computing `visibleWindow`. If you add a new row to a panel's header, reduce `innerHeight` by 1 to compensate.
 

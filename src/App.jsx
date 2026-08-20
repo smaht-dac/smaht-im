@@ -20,6 +20,7 @@ import {
   folderLabel,
   loadBranchMeta,
   saveBranchMeta,
+  getFolderEnvs,
   loadEnvAuth,
   checkRemoteAsync,
   syncFolderAsync,
@@ -147,6 +148,7 @@ export default function App() {
   const currentType   = currentFolder?.types[typeIdx] ?? null;
   const currentItems  = currentType?.items ?? [];
   const activeFolder  = folders.find(f => f.isActive) ?? null;
+  const currentFolderEnvs = currentFolder ? getFolderEnvs(currentFolder.name) : [];
   const isPulling     = !!pullState && !pullState.done;
   const pullingLine   = isPulling ? pullState.lastLine : null; // compact spinner display — hidden once done
 
@@ -628,7 +630,7 @@ export default function App() {
   const NOTIF_H      = 1;
   const contentHeight = Math.max(8, appHeight - footerHeight - NOTIF_H);
 
-  const overviewH = 4;
+  const overviewH = 6;
   const logH      = 6;
   const rowH      = contentHeight - overviewH - logH;
 
@@ -855,6 +857,7 @@ export default function App() {
         <Box flexGrow={1} flexDirection="column">
           <OverviewPanel
             folder={currentFolder}
+            envs={currentFolderEnvs}
             height={overviewH}
           />
           <Box flexDirection="row" height={rowH}>

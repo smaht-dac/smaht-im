@@ -135,10 +135,22 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
 
 // ── OverviewPanel ─────────────────────────────────────────────────────────────
 
-export function OverviewPanel({ folder, height }) {
+const OVERVIEW_LABEL_WIDTH = 13;
+
+function OverviewRow({ label, value }) {
+  return (
+    <Box>
+      <Text dimColor>{label.padEnd(OVERVIEW_LABEL_WIDTH)}</Text>
+      <Text dimColor>{value}</Text>
+    </Box>
+  );
+}
+
+export function OverviewPanel({ folder, envs, height }) {
   const label       = folder ? folderLabel(folder.name) : null;
   const lastUpdated = fmtFullDate(folder?.lastUpdated ?? null);
   const items       = folder ? String(folder.totalItems) : '—';
+  const envsText    = envs && envs.length ? envs.join(', ') : '—';
 
   return (
     <Box
@@ -151,15 +163,10 @@ export function OverviewPanel({ folder, height }) {
         <Text dimColor> Overview </Text>
         {label && <Text dimColor>{label}</Text>}
       </Box>
-      <Box paddingX={2} gap={4}>
-        <Box>
-          <Text dimColor>Last pulled  </Text>
-          <Text dimColor>{lastUpdated}</Text>
-        </Box>
-        <Box>
-          <Text dimColor>Items  </Text>
-          <Text dimColor>{items}</Text>
-        </Box>
+      <Box paddingX={2} flexDirection="column">
+        <OverviewRow label="Last pulled" value={lastUpdated} />
+        <OverviewRow label="Items" value={items} />
+        <OverviewRow label="Env(s)" value={envsText} />
       </Box>
     </Box>
   );
