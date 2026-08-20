@@ -17,7 +17,7 @@ function visibleWindow(items, selectedIdx, maxRows) {
 }
 
 /** Truncate a string to maxLen, appending '…' if needed. */
-function trunc(str, maxLen) {
+export function trunc(str, maxLen) {
   if (!str || str.length <= maxLen) return str ?? '';
   return str.slice(0, maxLen - 1) + '…';
 }
@@ -50,7 +50,19 @@ function relativeTime(d) {
 
 // ── FolderPanel ───────────────────────────────────────────────────────────────
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused }) {
+/** Return indicator text and color for a remote status entry. */
+function remoteIndicator(rs) {
+  if (!rs || rs.status === 'checking') return { text: '~',  color: 'gray'  };
+  if (rs.status === 'untracked')       return { text: '?',  color: 'gray'  };
+  if (rs.status === 'error')           return { text: '!',  color: 'red'   };
+  if (rs.behind === 0 && rs.ahead === 0) return { text: '✓', color: 'green' };
+  const parts = [];
+  if (rs.behind > 0) parts.push(`↓${rs.behind}`);
+  if (rs.ahead  > 0) parts.push(`↑${rs.ahead}`);
+  return { text: parts.join(''), color: 'yellow' };
+}
+
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus }) {
 
   useInput((input, key) => {
     if (!isFocused) return;
@@ -58,12 +70,13 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   });
 
-  // Dynamic width: fit longest branch name + count + right-aligned age, capped at 100
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + age(4) = 20
-  const DATE_W    = 4; // "11mo" — longest relative-time token (right-aligned, no prefix)
-  const overhead  = 16 + DATE_W;
+  // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(9) + age(4) = 29
+  const DATE_W   = 4;
+  const REMOTE_W = 9; // "↓999↑99" worst case
+  const overhead  = 20 + DATE_W + REMOTE_W;
   const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
-  const panelWidth = Math.min(100, Math.max(30, longestShortName + overhead));
+  const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
   const nameWidth  = panelWidth - overhead;
 
   const innerHeight = Math.max(1, height - 2); // subtract border rows
@@ -90,6 +103,8 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
         const realIdx = i + offset;
         const isSelected = realIdx === selectedIdx;
         const shortName = folderLabel(folder.name);
+        const rs  = remoteStatus?.get(folder.name);
+        const ind = remoteIndicator(rs);
 
         return (
           <Box key={folder.name} paddingX={1}>
@@ -109,7 +124,8 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused 
             </Text>
             <Text color="gray"> [{folder.totalItems}]</Text>
             <Box flexGrow={1} />
-            <Text color="gray">{relativeTime(folder.lastUpdated)}</Text>
+            <Text color={ind.color}>{ind.text.padStart(REMOTE_W)}</Text>
+            <Text color="gray">  {relativeTime(folder.lastUpdated)}</Text>
           </Box>
         );
       })}
@@ -160,13 +176,20 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
     if (key.downArrow || input === 'j') onSelect(Math.min(types.length - 1, selectedIdx + 1));
   });
 
+  // Dynamic width: fit the longest "name.json [count]" row, clamped to a sane range
+  // so this panel never stretches to fill the row the way it did when it was flexGrow.
+  const overhead = 2 /* border */ + 2 /* paddingX */ + 2 /* cursor */ + 7 /* " [999]" */;
+  const longestName = types.reduce((max, t) => Math.max(max, (t.name + '.json').length), 6);
+  const nameWidth  = Math.min(30, longestName);
+  const panelWidth = Math.max(24, Math.min(44, nameWidth + overhead));
+
   const innerHeight = Math.max(1, height - 2);
   const { slice, offset } = visibleWindow(types, selectedIdx, innerHeight);
-  const title = folder ? trunc(folder.name, 36) : '—';
 
   return (
     <Box
-      flexGrow={1}
+      width={panelWidth}
+      height={height}
       flexDirection="column"
       borderStyle="single"
       borderColor={isFocused ? 'green' : 'gray'}
@@ -174,7 +197,7 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
       {/* Title */}
       <Box paddingX={1}>
         <Text bold color={isFocused ? 'green' : 'white'}> Types </Text>
-        <Text color="gray">{folder ? `in ${title}` : ''}</Text>
+        <Text color="gray">({types.length})</Text>
       </Box>
 
       {!folder && (
@@ -237,6 +260,7 @@ export function ItemsPanel({
 
   return (
     <Box
+      flexGrow={1}
       height={height}
       flexDirection="column"
       borderStyle="single"
@@ -317,7 +341,7 @@ export function ItemsPanel({
 
 const SPIN_FRAMES = ['|', '/', '-', '\\'];
 
-function Spinner() {
+export function Spinner() {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setFrame(f => (f + 1) % SPIN_FRAMES.length), 120);
@@ -328,7 +352,7 @@ function Spinner() {
 
 // ── ErrorLogPanel ─────────────────────────────────────────────────────────────
 
-export function ErrorLogPanel({ errors, pulling, height }) {
+export function ErrorLogPanel({ errors, pulling, height, expandHint }) {
   const hasRealErr = errors.some(e => !e.startsWith('$ '));
   const hasAny     = errors.length > 0 || !!pulling;
   // Reserve a row for the spinner line when pulling; rest go to log entries
@@ -349,6 +373,8 @@ export function ErrorLogPanel({ errors, pulling, height }) {
           : pulling
           ? <Text bold color="yellow"> Pulling… </Text>
           : <Text dimColor> Log </Text>}
+        <Box flexGrow={1} />
+        {expandHint && <Text color="gray">[{expandHint}] expand</Text>}
       </Box>
       {!hasAny && (
         <Box paddingX={2}>

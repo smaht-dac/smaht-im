@@ -25,6 +25,15 @@ export const DEFAULT_BINDINGS = {
   moveItems:    { key: 'm',      ctrl: false, label: 'Move items' },
   selectItem:   { key: ' ',      ctrl: false, label: 'Toggle / load (context-aware)' },
   selectAll:    { key: 'a',      ctrl: true,  label: 'Select all items' },
+  sync:         { key: 'f',      ctrl: false, label: 'Sync from portal (context-aware)' },
+  setQuery:     { key: 't',      ctrl: false, label: 'Set tracking query' },
+  exportAnon:   { key: 'e',      ctrl: false, label: 'Export de-identified copy' },
+  expandLog:    { key: 'L',      ctrl: false, label: 'Expand error log' },
+  viewFullLog:  { key: 'F',      ctrl: false, label: 'View full log file' },
+  viewHistory:  { key: 'H',      ctrl: false, label: 'View folder backup history' },
+  viewPull:     { key: 'p',      ctrl: false, label: 'View pull/sync output' },
+  cancelPull:   { key: 'x',      ctrl: false, label: 'Cancel in-progress pull/sync' },
+  pullMore:     { key: 'A',      ctrl: false, label: 'Pull more into folder with a new query' },
 };
 
 /** Load bindings from disk, merged over defaults. Always returns a complete map. */
