@@ -14,23 +14,35 @@ committed to the portal repo.
 
 ## How it works
 
-Both tools operate on the same inserts directory inside your local smaht-portal checkout:
+Both tools operate on the inserts directory inside your local smaht-portal checkout —
+but only the working copy and real portal fixtures live there. Named branches live
+outside the checkout entirely, in imc's own state directory:
 
 ```
 ~/dbmi/smaht-portal/src/encoded/tests/data/
   ├── master-inserts/             ← live portal data — never touched
   ├── workbook-inserts/           ← live portal data — never touched
-  ├── temp-local-inserts/         ← working copy (what portal loads)
+  └── temp-local-inserts/         ← working copy (what portal loads)
+
+~/.smaht-im/branches/
   ├── temp-local-inserts-main/    ← named branch
   ├── temp-local-inserts-devtest/ ← named branch
   └── temp-local-inserts-staging/ ← named branch
 ```
 
+Branches used to live alongside the working copy inside the portal checkout; they were
+moved out since imc is the only thing that ever reads them (the portal itself only ever
+reads the working copy) — keeping them outside the checkout means a branch operation can
+never accidentally touch a real fixture like `master-inserts`. Every keybinding and
+workflow described below is unchanged either way — only where things physically live
+moved.
+
 ### The branch model
 
 `imc` manages inserts folders like git branches. `temp-local-inserts/` is the
 **working copy** — the folder smaht-portal reads. Named folders
-(`temp-local-inserts-<name>/`) are branches you switch between.
+(`temp-local-inserts-<name>/`) are branches you switch between, stored in
+`~/.smaht-im/branches/`.
 
 ```
                    [a] or Space load                [s] snapshot "devtest"
@@ -313,6 +325,14 @@ invocation, regardless of where you are.
 
 All commands accept `--help` for a full option list.
 
+> **Don't pass a `temp-local-inserts-<slug>` name to `--dir`.** `im`'s `--dir`
+> always writes inside the portal checkout — it has no way to reach
+> `~/.smaht-im/branches/`, where `imc` actually stores its named branches now.
+> Using `--dir donor-only` (a plain name, like the examples below) is fine;
+> using `--dir temp-local-inserts-devtest` will silently create a second,
+> out-of-sync copy inside the portal checkout instead of updating the branch
+> `imc` thinks that name refers to.
+
 ### `im status`
 
 Show every item type in a workspace with counts, last-pulled date, and the
@@ -543,4 +563,6 @@ branch.
   temp-local-inserts.json       — manifest per workspace
   my-workspace.json
   ...
+  branches/                     — named branches (temp-local-inserts-<slug>/), see "How it works"
+  backups/                      — pre-sync/restore snapshots, browsable via imc's History (`H`)
 ```

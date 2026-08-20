@@ -13,7 +13,7 @@ The tools read from and write to the inserts data directory inside a local smaht
 ```
 ~/dbmi/smaht-portal/src/encoded/tests/data/
 ```
-Overridden at runtime via `SMAHT_REPO_ROOT` env var.
+Overridden at runtime via `SMAHT_REPO_ROOT` env var. **Only the active working copy (`temp-local-inserts`) and real portal fixtures (`master-inserts`, `workbook-inserts`, etc.) live here** — named branches (`temp-local-inserts-<slug>`) live outside the checkout entirely, at `~/.smaht-im/branches/<slug>/` (`BRANCHES_BASE` in `src/core.js`). See "core.js conventions" below for how path resolution works, and "Branch storage lives outside the repo" further down for why.
 
 ## Safety invariant — never break this
 
@@ -21,7 +21,19 @@ Overridden at runtime via `SMAHT_REPO_ROOT` env var.
 
 The live portal repo also contains `master-inserts`, `workbook-inserts`, etc. — these must never be touched. Every write operation in `src/core.js` has an explicit guard. Do not remove those guards.
 
-The directory named exactly `temp-local-inserts` (no suffix) is the **active folder** — the one the portal actually loads. It may be read or have its contents replaced, but it must never be deleted.
+The directory named exactly `temp-local-inserts` (no suffix) is the **active folder** — the one the portal actually loads. It may be read or have its contents replaced, but it must never be deleted. It's also the only insert-folder that still lives inside the portal checkout at all — branches don't, so for branch operations this guard is defense-in-depth rather than the primary safety mechanism (see below).
+
+## Branch storage lives outside the repo
+
+Named branches (`temp-local-inserts-<slug>`) physically live at `~/.smaht-im/branches/<slug>/` (`BRANCHES_BASE`), not inside the portal checkout. Only the literal working copy (`temp-local-inserts`) lives in `INSERTS_BASE` — the portal/tests read it there, so it can't move.
+
+Why: branches are purely imc's own bookkeeping (the portal never reads them directly), so there's no reason for them to sit next to real fixtures like `master-inserts`/`workbook-inserts`. Moving them out removes that whole "could this accidentally touch a real fixture" risk class for every branch operation. This mirrors what already existed for backups (`~/.smaht-im/backups/`) and manifests (`~/.smaht-im/{folderName}.json`) — both were already outside the repo before branches followed.
+
+`resolveFolderPath(name)` in `src/core.js` is the single place that decides which base a name resolves to — see "core.js conventions" above. If you're adding a new function that touches a folder by name, use it; don't reintroduce a raw `path.join(INSERTS_BASE, ...)`.
+
+**`im.py` was deliberately left untouched.** It has no branch/active distinction of its own — `--dir <name>` is a generic mechanism that always resolves inside `INSERTS_BASE`, and it always passes a bare name (never an absolute path) to the external `update-inserts-from-server` CLI, so it has no way to reach `~/.smaht-im/branches/`. Its own documented usage (see README) only ever uses plain, non-`temp-local-inserts`-prefixed names like `donor-only`, so real collision risk is low — but if someone runs `im.py --dir temp-local-inserts-<slug>` against a name that imc thinks lives elsewhere, `im.py` will silently create/write it in the old location instead. Don't "fix" this by changing `im.py` — that was a deliberate scope decision, not an oversight.
+
+If you ever need to migrate again (e.g. a fresh machine with stray branches still sitting in the old location), see `scripts/migrate-branches.js` — safe to re-run, uses atomic same-filesystem rename with a copy+verify+delete fallback for cross-device moves.
 
 ## Build workflow
 
@@ -134,6 +146,7 @@ In `App.jsx`:
 - All exports are plain functions — no classes, no state.
 - All I/O is synchronous (`fs.readFileSync`, `fs.cpSync`, `fs.rmSync`).
 - Every write function validates that its target name starts with `INSERT_PREFIX` before touching the filesystem. Do not skip this.
+- Every folder-path lookup goes through the private `resolveFolderPath(name)` helper — never hand-roll `path.join(INSERTS_BASE, someName)` again. The rule is purely "is `name` the literal string `ACTIVE_FOLDER`?", not "is this the currently-loaded folder?" — a branch that happens to be loaded right now still resolves to `BRANCHES_BASE`; only the bare working-copy directory resolves to `INSERTS_BASE`.
 - `loadFolder(name)` returns `null` if the directory doesn't exist — callers must handle null.
 - `loadAllFolders()` always puts the active folder (`temp-local-inserts`) first.
 - Item shape returned by `loadFolder`:
@@ -248,6 +261,28 @@ Two entry points share this one implementation — keep them that way rather tha
 - CLI: `scripts/anonymize-inserts.js`, a thin argv-parsing wrapper around the same `anonymizeFolder()`.
 
 This is a generic heuristic, not a compliance decision — see the README's "Sharing inserts data safely" section before changing the default policy or telling someone it's safe to send something.
+
+## How smaht-portal actually loads inserts (background)
+
+Researched 2026-08-20 in `~/dbmi/smaht-portal`, prompted by the question "could inserts be served to the browser instead of via `make deploy1`/`deploy2`?" Recorded here so it doesn't need re-researching.
+
+`make deploy1` runs snovault's `dev-servers --clear --init --load`: spins up local Postgres + Elasticsearch/OpenSearch + an nginx reverse proxy (single origin, `:8000` → app on `:6543`), creates ES mappings, then calls `load_local_data` (`snovault/loadxl.py`) — checks `tests/data/temp-local-inserts` first, falls back to other insert dirs, and loads whatever it finds through a real in-process Pyramid `TestApp` (`testapp.post_json`/`patch_json`): full schema validation, permissions, Postgres writes, then ES indexing queued. `make deploy2` is just `pserve development.ini` — serves whatever's already loaded, no insert-loading of its own.
+
+**No browser-level mock-request shortcut exists for this.** Checked smaht-portal for MSW, nock, json-server, Cypress `cy.intercept`, webpack-dev-server proxy, `USE_MOCK`-style flags — none exist anywhere in the repo. The only "mock" hits are Python `unittest.mock` mocking of Pyramid `request` objects in backend unit tests (e.g. `test_authorization.py`) — unrelated to serving insert JSON as fake network responses. (This is almost certainly what was seen when searching for "mock requests" there.)
+
+It also couldn't fully substitute even if built: smaht-portal is server-rendered. The initial HTML + embedded JSON props for any page are produced by a Node subprocess the Pyramid backend spawns (`src/encoded/static/server.js`) *before* anything reaches the browser. Browser-side fetch/XHR interception (service worker, browser extension, DevTools local overrides) could only affect later client-initiated calls (in-app search/browse re-fetches), not the first render of a page.
+
+**PHI implication:** inserts contain real donor/sample/tissue data — the reason [Anonymized export](#anonymized-export) exists, and why smaht-portal's `.gitignore` excludes `temp-local-inserts*` from version control. Any browser-mocking pathway (service worker cache, an intercepting browser extension, a local mock server) would create a *new* copy/exposure surface for that data — Cache Storage, extension storage, or a proxy possibly bound beyond localhost — on top of what already sits in local Postgres/ES. A third-party intercepting extension in particular carries a supply-chain-style exposure risk the standard deploy pipeline doesn't have. Net: not worth building as a `deploy1`/`deploy2` replacement.
+
+### Avoiding the Pyramid round trip on repeat loads
+
+The full TestApp round trip (schema validation + Postgres write per item) is not the *only* option — `deploy1` just doesn't use the faster options that already exist in snovault:
+
+- **The Postgres/ES datadir is not ephemeral.** `snovault/dev_servers.py` derives it from `development.ini`'s `sqlalchemy.url` `host=` param (smaht-portal's points at `/tmp/snovault/pgdata`, `esdata` alongside it) — a fixed path, only wiped when `--clear` is passed. `--clear`, `--init`, and `--load` are independently gated (`--init` runs `initdb`/creates ES mappings; the actual insert load only runs when **both** `--init` and `--load` are set). So running `dev-servers development.ini --app-name app` with none of those three flags starts Postgres+ES+nginx reattached to whatever's already on disk from the last load — no reload, no revalidation. `Base.metadata.create_all()` (gated by `create_tables` in the ini) is idempotent, so this is safe against an already-populated DB.
+- **`make deploy1` doesn't expose this** — it hardcodes `--clear --init --load` (Makefile). A `deploy1-reattach: dev-servers development.ini --app-name app` target (no flags) would be a one-line addition to get "pay the load cost once, then just reattach" for as long as `/tmp/snovault/pgdata` survives. Caveats: (1) if the prior run was stopped via `make kill` (a blanket `pkill -f postgres`), a stale `postmaster.pid` can be left behind and needs deleting before Postgres will start again — `dev_servers.py` has a comment flagging exactly this; (2) skipping `--init` means ES reuses the old mapping, which can drift if a schema changed locally since the last real load.
+- **Already free today, no changes needed:** `deploy1` (Postgres/ES/nginx) and `deploy2` (`pserve`, the app server) are already separate processes. Only `deploy1` pays the load cost — restarting just `deploy2` while leaving the `deploy1` terminal running never reloads anything.
+- **No bulk/skip-validation loader exists in `loadxl.py`** — every loader funnels through `testapp.post_json`/`patch_json`, always full validation. The only "skip" flag (`validate_only`) is the opposite (validates but doesn't persist, for dry-runs). The pytest suite's own speed trick (`WorkbookCache` in smaht-portal's `conftest.py`, plus `snovault/tests/serverfixtures.py`'s savepoint-based rollback) loads fixtures once per pytest *process* on an ephemeral tmpdir Postgres, then rolls back per-test — same "pay once" idea, but scoped to a test run, not reusable for interactive `deploy1`.
+- **No local DB-snapshot/restore workflow exists.** `docs/operations/restore_devtest_db.md` is AWS-RDS-snapshot machinery for the shared remote `smaht-devtest` environment (KMS/STS/Secrets Manager, swaps the whole RDS instance) — no pg_dump/pg_restore step, and nothing in it translates to a laptop without new tooling.
 
 ## What not to change without good reason
 

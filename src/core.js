@@ -23,8 +23,28 @@ export const INSERTS_BASE = path.join(
 export const ACTIVE_FOLDER = 'temp-local-inserts';
 export const INSERT_PREFIX = 'temp-local-inserts';
 
+// Branches (temp-local-inserts-<slug>) live here, outside the portal checkout —
+// only the literal working copy (ACTIVE_FOLDER) needs to live inside INSERTS_BASE,
+// since that's the one the portal/tests actually read. See resolveFolderPath below.
+export const BRANCHES_BASE = path.join(os.homedir(), '.smaht-im', 'branches');
+
 const HISTORY_FILE = path.join(os.homedir(), '.smaht-im', 'activation-history.json');
 const HEAD_FILE     = path.join(os.homedir(), '.smaht-im', 'HEAD');
+
+/**
+ * Resolve a folder name to its on-disk directory. The literal working copy
+ * (ACTIVE_FOLDER, exactly 'temp-local-inserts') lives inside the portal
+ * checkout (INSERTS_BASE) — the portal reads it directly and it must stay
+ * there. Every other temp-local-inserts-<slug> BRANCH — including one that
+ * happens to be the currently *loaded* branch — lives in BRANCHES_BASE.
+ * Existing startsWith(INSERT_PREFIX) guards in each caller stay exactly
+ * where they are and run BEFORE this is called.
+ */
+function resolveFolderPath(name) {
+  return name === ACTIVE_FOLDER
+    ? path.join(INSERTS_BASE, name)
+    : path.join(BRANCHES_BASE, name);
+}
 
 /** Strip the common prefix to get the human-readable branch name. */
 export function folderLabel(fullName) {
@@ -78,7 +98,7 @@ function displayId(item) {
  * where types is an array of { name, items, count }.
  */
 export function loadFolder(folderName) {
-  const folderPath = path.join(INSERTS_BASE, folderName);
+  const folderPath = resolveFolderPath(folderName);
   const types = [];
 
   if (!fs.existsSync(folderPath)) return null;
@@ -125,8 +145,8 @@ export function loadFolder(folderName) {
  * as the given named folder. Used to detect external changes.
  */
 function workingCopyMatchesFolder(folderName) {
-  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
-  const folderPath = path.join(INSERTS_BASE, folderName);
+  const activePath = resolveFolderPath(ACTIVE_FOLDER);
+  const folderPath = resolveFolderPath(folderName);
   if (!fs.existsSync(folderPath)) return false;
   const toMap = (dir) => new Map(
     fs.readdirSync(dir)
@@ -145,10 +165,10 @@ function timestampFolderName() {
   const d   = new Date();
   const pad = n => String(n).padStart(2, '0');
   const base = `${INSERT_PREFIX}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
-  if (!fs.existsSync(path.join(INSERTS_BASE, base))) return base;
+  if (!fs.existsSync(resolveFolderPath(base))) return base;
   for (let i = 2; i < 100; i++) {
     const c = `${base}-${i}`;
-    if (!fs.existsSync(path.join(INSERTS_BASE, c))) return c;
+    if (!fs.existsSync(resolveFolderPath(c))) return c;
   }
   return base;
 }
@@ -163,20 +183,23 @@ function timestampFolderName() {
 export function loadAllFolders() {
   if (!fs.existsSync(INSERTS_BASE)) return [];
 
-  const entries = fs.readdirSync(INSERTS_BASE, { withFileTypes: true });
+  // Branches live in BRANCHES_BASE, not INSERTS_BASE — lazy-create it, since
+  // readdirSync (unlike cpSync elsewhere in this function) throws if missing.
+  fs.mkdirSync(BRANCHES_BASE, { recursive: true });
+  const entries = fs.readdirSync(BRANCHES_BASE, { withFileTypes: true });
   let names = entries
     .filter(e => e.isDirectory() && e.name.startsWith(INSERT_PREFIX) && e.name !== ACTIVE_FOLDER)
     .map(e => e.name)
     .sort();
 
-  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+  const activePath = resolveFolderPath(ACTIVE_FOLDER);
   const workingHasData = fs.existsSync(activePath) &&
     fs.readdirSync(activePath).some(f => f.endsWith('.json'));
 
   // Bootstrap: no folders yet — create 'main' from the working copy
   if (names.length === 0 && workingHasData) {
     const mainName = `${INSERT_PREFIX}-main`;
-    fs.cpSync(activePath, path.join(INSERTS_BASE, mainName), { recursive: true });
+    fs.cpSync(activePath, resolveFolderPath(mainName), { recursive: true });
     names = [mainName];
   }
 
@@ -191,7 +214,7 @@ export function loadAllFolders() {
   // snapshot it into a new timestamped folder and make that the loaded one.
   if (workingHasData && (!active || !workingCopyMatchesFolder(active))) {
     const newName = timestampFolderName();
-    fs.cpSync(activePath, path.join(INSERTS_BASE, newName), { recursive: true });
+    fs.cpSync(activePath, resolveFolderPath(newName), { recursive: true });
     names.push(newName);
     setLoadedFolder(newName);
     active = newName;
@@ -224,8 +247,8 @@ export function switchFolder(targetName) {
   if (targetName === ACTIVE_FOLDER) throw new Error('Cannot switch to the working copy directly');
   if (!targetName.startsWith(INSERT_PREFIX)) throw new Error(`'${targetName}' is not a valid inserts folder`);
 
-  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
-  const targetPath = path.join(INSERTS_BASE, targetName);
+  const activePath = resolveFolderPath(ACTIVE_FOLDER);
+  const targetPath = resolveFolderPath(targetName);
 
   if (!fs.existsSync(targetPath)) throw new Error(`Folder '${folderLabel(targetName)}' not found`);
 
@@ -254,13 +277,13 @@ export function createFolder(name, baseBranch = null) {
   const slug = safeSlug(name);
   if (!slug) throw new Error('Folder name is invalid');
   const fullName = `${INSERT_PREFIX}-${slug}`;
-  const newPath  = path.join(INSERTS_BASE, fullName);
+  const newPath  = resolveFolderPath(fullName);
 
   if (fs.existsSync(newPath)) throw new Error(`Folder '${slug}' already exists`);
   fs.mkdirSync(newPath, { recursive: true });
 
   if (baseBranch) {
-    const basePath = path.join(INSERTS_BASE, baseBranch);
+    const basePath = resolveFolderPath(baseBranch);
     if (!fs.existsSync(basePath)) throw new Error(`Base folder '${folderLabel(baseBranch)}' not found`);
     for (const f of fs.readdirSync(basePath).filter(n => n.endsWith('.json'))) {
       fs.copyFileSync(path.join(basePath, f), path.join(newPath, f));
@@ -342,8 +365,8 @@ export function pullFolderAsync(env, query, onLine, onDone) {
  * folder, replacing whatever was there. Used to persist a pull result.
  */
 export function syncWorkingCopyToFolder(targetName) {
-  const srcPath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
-  const dstPath = path.join(INSERTS_BASE, targetName);
+  const srcPath = resolveFolderPath(ACTIVE_FOLDER);
+  const dstPath = resolveFolderPath(targetName);
   if (!fs.existsSync(srcPath)) throw new Error('Working copy not found');
   if (!fs.existsSync(dstPath)) throw new Error(`Folder '${folderLabel(targetName)}' not found`);
   for (const f of fs.readdirSync(dstPath).filter(n => n.endsWith('.json'))) {
@@ -369,8 +392,8 @@ export function renameFolder(oldName, newSlug) {
   if (!oldName.startsWith(INSERT_PREFIX)) throw new Error(`'${oldName}' is not a valid folder`);
   if (newName === oldName) throw new Error('Name is unchanged');
 
-  const oldPath = path.join(INSERTS_BASE, oldName);
-  const newPath = path.join(INSERTS_BASE, newName);
+  const oldPath = resolveFolderPath(oldName);
+  const newPath = resolveFolderPath(newName);
 
   if (!fs.existsSync(oldPath)) throw new Error(`Folder '${folderLabel(oldName)}' not found`);
   if (fs.existsSync(newPath)) throw new Error(`'${slug}' already exists`);
@@ -392,8 +415,8 @@ export function createSnapshot(name) {
   const slug = safeSlug(name);
   if (!slug) throw new Error('Snapshot name is invalid');
   const snapName = `${INSERT_PREFIX}-${slug}`;
-  const snapPath = path.join(INSERTS_BASE, snapName);
-  const activePath = path.join(INSERTS_BASE, ACTIVE_FOLDER);
+  const snapPath = resolveFolderPath(snapName);
+  const activePath = resolveFolderPath(ACTIVE_FOLDER);
 
   if (fs.existsSync(snapPath)) throw new Error(`Folder '${snapName}' already exists`);
   if (!fs.existsSync(activePath)) throw new Error(`Active folder '${ACTIVE_FOLDER}' does not exist`);
@@ -411,7 +434,7 @@ export function deleteFolder(folderName) {
   if (folderName === ACTIVE_FOLDER) throw new Error('Cannot delete the working copy');
   if (folderName === getLoadedFolder()) throw new Error('Cannot delete the loaded folder — load another folder first');
   if (!folderName.startsWith(INSERT_PREFIX)) throw new Error(`Refusing: '${folderName}' is not a valid branch`);
-  const folderPath = path.join(INSERTS_BASE, folderName);
+  const folderPath = resolveFolderPath(folderName);
   if (!fs.existsSync(folderPath)) throw new Error(`Folder '${folderName}' does not exist`);
   fs.rmSync(folderPath, { recursive: true, force: true });
   return `Deleted '${folderName}'`;
@@ -428,8 +451,8 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   if (!srcName.startsWith(INSERT_PREFIX)) throw new Error(`Source '${srcName}' is not valid`);
   if (!dstName.startsWith(INSERT_PREFIX)) throw new Error(`Destination '${dstName}' is not valid`);
 
-  const srcFile = path.join(INSERTS_BASE, srcName, `${typeName}.json`);
-  const dstFile = path.join(INSERTS_BASE, dstName, `${typeName}.json`);
+  const srcFile = path.join(resolveFolderPath(srcName), `${typeName}.json`);
+  const dstFile = path.join(resolveFolderPath(dstName), `${typeName}.json`);
 
   const srcAll = readJson(srcFile) ?? [];
   const dstAll = readJson(dstFile) ?? [];
@@ -443,7 +466,7 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   const newItems = toMove.filter(i => !dstUuids.has(i.uuid));
   const skipped = toMove.length - newItems.length;
 
-  fs.mkdirSync(path.join(INSERTS_BASE, dstName), { recursive: true });
+  fs.mkdirSync(resolveFolderPath(dstName), { recursive: true });
   writeJson(srcFile, remaining);
   writeJson(dstFile, [...dstAll, ...newItems]);
 
@@ -513,7 +536,7 @@ const BACKUP_META_FILE = '_meta.json'; // bookkeeping only — must never be cop
  * null if the folder doesn't exist yet or has no JSON files to back up.
  */
 export function backupFolder(folderName, reason) {
-  const srcPath = path.join(INSERTS_BASE, folderName);
+  const srcPath = resolveFolderPath(folderName);
   if (!fs.existsSync(srcPath)) return null;
   const files = fs.readdirSync(srcPath).filter(f => f.endsWith('.json') && f !== BACKUP_META_FILE);
   if (files.length === 0) return null;
@@ -567,7 +590,7 @@ export function restoreBackup(folderName, backupId) {
 
   backupFolder(folderName, `before restoring ${backupId}`);
 
-  const destPath = path.join(INSERTS_BASE, folderName);
+  const destPath = resolveFolderPath(folderName);
   fs.mkdirSync(destPath, { recursive: true });
   for (const f of fs.readdirSync(destPath).filter(n => n.endsWith('.json'))) {
     fs.unlinkSync(path.join(destPath, f));
@@ -694,7 +717,7 @@ export function syncFolderAsync(folderName, onLine, onDone) {
   const before = loadFolder(folderName);
   backupFolder(folderName, 'before folder sync');
 
-  const folderPath = path.join(INSERTS_BASE, folderName);
+  const folderPath = resolveFolderPath(folderName);
   return spawnUpdateInsertsAsync({ env, query, dest: folderPath }, onLine, (result) => {
     if (result.success) saveBranchMeta(folderName, { __remote_cache__: null });
     const diff = result.success ? diffFolderObjects(before, loadFolder(folderName)) : null;
@@ -736,7 +759,7 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
   }
 
   const before = loadFolder(folderName);
-  const folderPath = path.join(INSERTS_BASE, folderName);
+  const folderPath = resolveFolderPath(folderName);
   let currentKill = () => {};
 
   const runAt = (i) => {
@@ -781,7 +804,7 @@ export function syncItemAsync(folderName, typeName, uuid, env, onDone) {
     .then(data => {
       const fresh = (data['@graph'] ?? [])[0];
       if (!fresh) throw new Error('Item not found in portal');
-      const filePath = path.join(INSERTS_BASE, folderName, `${typeName}.json`);
+      const filePath = path.join(resolveFolderPath(folderName), `${typeName}.json`);
       const items = readJson(filePath) ?? [];
       const idx = items.findIndex(i => i.uuid === uuid);
       if (idx === -1) throw new Error('UUID not found in local file');
@@ -941,7 +964,7 @@ export function anonymizeFolder(sourceName, opts = {}) {
   if (!sourceName.startsWith(INSERT_PREFIX)) {
     throw new Error(`'${sourceName}' is not a valid inserts folder`);
   }
-  const sourcePath = path.join(INSERTS_BASE, sourceName);
+  const sourcePath = resolveFolderPath(sourceName);
   if (!fs.existsSync(sourcePath)) throw new Error(`Folder '${folderLabel(sourceName)}' not found`);
 
   const policy     = opts.policy ?? ANONYMIZE_DEFAULT_POLICY;
