@@ -43,7 +43,6 @@ import {
 import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ErrorLogPanel } from './Panels.jsx';
 import {
   NewFolderModal,
-  LoadModal,
   RenameModal,
   SnapshotModal,
   DeleteModal,
@@ -276,7 +275,7 @@ export default function App() {
     if (matches(bindings.load, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
       if (currentFolder.isActive) { notify('Already loaded'); return; }
-      setModal('checkout');
+      handleLoad();
       return;
     }
     if (matches(bindings.snapshot,     input, key)) { setModal('snapshot'); return; }
@@ -314,7 +313,7 @@ export default function App() {
       if (focus === 'folders') {
         if (!currentFolder) { notify('No folder selected', true); return; }
         if (currentFolder.isActive) { notify('Already loaded'); return; }
-        setModal('checkout');
+        handleLoad();
       } else if (focus === 'items') {
         const item = currentItems[itemIdx];
         if (!item) return;
@@ -373,7 +372,6 @@ export default function App() {
   // ── modal callbacks ───────────────────────────────────────────────────────
 
   const handleLoad = () => {
-    setModal(null);
     try {
       const msg = switchFolder(currentFolder.name);
       notify(msg);
@@ -676,14 +674,6 @@ export default function App() {
           <RenameModal
             folder={currentFolder}
             onConfirm={handleRename}
-            onCancel={() => setModal(null)}
-          />
-        )}
-        {modal === 'checkout' && (
-          <LoadModal
-            target={currentFolder}
-            current={activeFolder}
-            onConfirm={handleLoad}
             onCancel={() => setModal(null)}
           />
         )}

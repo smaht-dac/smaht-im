@@ -57,33 +57,6 @@ function ButtonBar({ buttons }) {
   );
 }
 
-// ── LoadModal ─────────────────────────────────────────────────────────────
-
-export function LoadModal({ target, current, onConfirm, onCancel }) {
-  useInput((input, key) => {
-    if (key.escape || input === 'n') { onCancel(); return; }
-    if (key.return || input === 'y' || input === 'a') onConfirm();
-  });
-
-  const targetLabel  = folderLabel(target.name);
-  const currentLabel = current ? folderLabel(current.name) : '—';
-
-  return (
-    <Dialog title={`↪  Load '${targetLabel}'`} titleColor="green" width={60}>
-      <Text color="white">
-        Switch from <Text bold color="gray">{currentLabel}</Text> ({current?.totalItems ?? '?'}) to{' '}
-        <Text bold color="yellow">{targetLabel}</Text> ({target.totalItems}).
-      </Text>
-      <ButtonBar
-        buttons={[
-          { key: 'Enter / y', label: 'Load',   color: 'green' },
-          { key: 'Esc / n',   label: 'Cancel', color: 'red' },
-        ]}
-      />
-    </Dialog>
-  );
-}
-
 // ── SnapshotModal ─────────────────────────────────────────────────────────────
 
 export function SnapshotModal({ activeFolder, onConfirm, onCancel }) {
