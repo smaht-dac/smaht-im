@@ -334,7 +334,7 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
 
   return (
     <Dialog
-      title={`↗  Move ${items.length} item${items.length !== 1 ? 's' : ''} from ${srcFolder}/${typeName}.json`}
+      title={`↗  Move ${items.length} item${items.length !== 1 ? 's' : ''} from ${folderLabel(srcFolder)}/${typeName}.json`}
       titleColor="yellow"
       width={70}
     >
@@ -362,7 +362,7 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
             color={i === dstIdx ? 'green' : 'gray'}
           >
             {i === dstIdx ? '▶ ' : '  '}
-            {f.name}  [{f.totalItems}]
+            {folderLabel(f.name)}  [{f.totalItems}]
           </Text>
         </Box>
       ))}
