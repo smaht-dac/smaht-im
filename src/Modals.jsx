@@ -69,9 +69,8 @@ export function SnapshotModal({ activeFolder, onConfirm, onCancel }) {
   return (
     <Dialog title="📸 New Snapshot" titleColor="cyan" width={60}>
       <Text color="gray">
-        Creates a copy of temp-local-inserts as:
+        Creates a named copy of the working copy as a new branch.
       </Text>
-      <Text color="white">  temp-local-inserts-{`{name}`}</Text>
       <Text color="gray">The active folder is NOT changed.</Text>
       <Box height={1} />
       <Text color="yellow">Snapshot name (Enter to create):</Text>
