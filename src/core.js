@@ -655,8 +655,7 @@ export function saveBranchMeta(folderName, updates) {
  */
 export function getFolderEnvs(folderName) {
   const meta = loadBranchMeta(folderName);
-  const entries = Object.entries(meta)
-    .filter(([key]) => !key.startsWith('__'))
+  const entries = Object.entries(meta.types || {})
     .filter(([, v]) => v && v.env);
   entries.sort((a, b) => new Date(b[1].last_pulled || 0) - new Date(a[1].last_pulled || 0));
   const envs = [...new Set(entries.map(([, v]) => v.env))];
@@ -665,15 +664,19 @@ export function getFolderEnvs(folderName) {
 }
 
 /**
- * The effective tracking entry for a folder: the first per-type entry
- * written by im.py if one exists, else the manual __tracking__ entry set
- * via `t` or on folder creation. Returns null if neither exists.
+ * The effective tracking entry for a folder: the most-recently-pulled
+ * per-type entry with a saved query from im.py's manifest (meta.types —
+ * im.py writes per-type entries nested there, not at the top level; entries
+ * for transitively-pulled types carry a count but no query and are skipped),
+ * else the manual __tracking__ entry set via `t` or on folder creation.
+ * Returns null if neither exists.
  */
 export function getFolderTracking(folderName) {
   const meta = loadBranchMeta(folderName);
-  const typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
-  const entry = typeKeys.length > 0 ? meta[typeKeys[0]] : meta.__tracking__;
-  return entry ?? null;
+  const entries = Object.entries(meta.types || {})
+    .filter(([, v]) => v && v.query);
+  entries.sort((a, b) => new Date(b[1].last_pulled || 0) - new Date(a[1].last_pulled || 0));
+  return entries[0]?.[1] ?? meta.__tracking__ ?? null;
 }
 
 /**
@@ -695,9 +698,9 @@ export function loadEnvAuth(env) {
  */
 export function checkRemoteAsync(folderName, onProgress) {
   const meta = loadBranchMeta(folderName);
-  let typeKeys = Object.keys(meta).filter(k => !k.startsWith('__'));
+  let typeKeys = Object.keys(meta.types || {}).filter(k => meta.types[k]?.query);
 
-  // Fall back to __tracking__ when there are no im.py per-type entries
+  // Fall back to __tracking__ when there are no im.py per-type entries with a query
   if (typeKeys.length === 0) {
     if (!meta.__tracking__?.query) { onProgress({ status: 'untracked' }); return; }
     typeKeys = ['__tracking__'];
@@ -722,7 +725,7 @@ export function checkRemoteAsync(folderName, onProgress) {
 
   const checks = typeKeys.map(async (typeName) => {
     const isTracking = typeName === '__tracking__';
-    const entry      = isTracking ? meta.__tracking__ : meta[typeName];
+    const entry      = isTracking ? meta.__tracking__ : meta.types[typeName];
     const env        = entry?.env ?? 'data';
     const query      = entry?.query ?? '';
     const auth       = loadEnvAuth(env);
