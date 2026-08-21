@@ -64,7 +64,6 @@ export function SnapshotModal({ activeFolder, onConfirm, onCancel }) {
 
   useInput((input, key) => {
     if (key.escape) onCancel();
-    if (input === 'n') onCancel();
   });
 
   return (
