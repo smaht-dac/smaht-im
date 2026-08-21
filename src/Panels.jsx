@@ -64,7 +64,7 @@ function remoteIndicator(rs) {
   if (rs.status === 'untracked')       return { text: '?',  color: 'gray'  };
   if (rs.status === 'error')           return { text: '!',  color: 'red'   };
   if (rs.behind === 0) return { text: '✓', color: 'green' };
-  return { text: `↓${rs.behind}`, color: 'yellow' };
+  return { text: '↓', color: 'yellow' };
 }
 
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus }) {
@@ -76,9 +76,9 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   });
 
   // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(4) + age(4) = 24
+  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(1) + age(4) = 21
   const DATE_W   = 4;
-  const REMOTE_W = 4; // "↓999" worst case
+  const REMOTE_W = 1; // indicator is always a single glyph: ~ ? ! ✓ ↓
   const overhead  = 20 + DATE_W + REMOTE_W;
   const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
   const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
