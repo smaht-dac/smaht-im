@@ -332,8 +332,9 @@ export function createFolder(name, baseBranch = null) {
 
 /**
  * Low-level spawn wrapper for update-inserts-from-server, shared by
- * pullFolderAsync (pulls into the default working copy) and syncFolderAsync
- * (re-pulls into a named folder via --dest).
+ * syncFolderAsync and pullBatchIntoFolderAsync (both re-pull into a named
+ * folder via --dest; passing ACTIVE_FOLDER as that name targets the working
+ * copy, since resolveFolderPath resolves it there).
  *
  * Auto-confirms the CLI's interactive whitelist prompt: it asks
  * "Continue? (y/n)" whenever --dest's basename isn't one of a handful of
@@ -382,19 +383,6 @@ function spawnUpdateInsertsAsync({ env, query, dest }, onLine, onDone) {
   });
 
   return { cmd, kill() { killedByUs = true; child.kill('SIGTERM'); } };
-}
-
-/**
- * Run update-inserts-from-server without --dest so it writes to the default
- * temp-local-inserts (the working copy). The caller must switch to the target
- * folder first so that folder is the active working copy.
- *
- * onLine(line) is called for each output line as it arrives (live progress).
- * onDone(success, result) is called when the process exits.
- * Returns { cmd, kill() } — cmd is the user-facing command string for logging.
- */
-export function pullFolderAsync(env, query, onLine, onDone) {
-  return spawnUpdateInsertsAsync({ env, query }, onLine, (result) => onDone(result.success, result));
 }
 
 /**
@@ -769,7 +757,7 @@ export function checkRemoteAsync(folderName, onProgress) {
  * Re-pull all tracked types for a named folder directly (not through the working copy),
  * using the folder's stored tracking query (see setQuery / `t`). The folder is backed
  * up first, so a bad sync is always recoverable via restoreBackup.
- * onLine(line) streams progress as it arrives, same as pullFolderAsync.
+ * onLine(line) streams progress as it arrives.
  * Calls onDone(success, message, diff, result) when complete — diff is the type-level
  * before/after change list (see diffFolderObjects), or null if it can't be computed.
  * Returns { cmd, kill() } so the caller can cancel an in-flight sync.
@@ -801,6 +789,9 @@ export function syncFolderAsync(folderName, onLine, onDone) {
  * merges into what's already there rather than replacing it, so this is
  * purely additive — useful for combinations the portal's own search can't
  * express as a single query (e.g. two disjoint OR-groups run back to back).
+ * Also used by handleCreateFolder (App.jsx) to seed a brand-new folder from
+ * several queries, passing ACTIVE_FOLDER as folderName so the batch lands
+ * in the working copy (see spawnUpdateInsertsAsync) rather than a branch.
  *
  * Deliberately does NOT back the folder up first — unlike syncFolderAsync,
  * this is a routine, frequent, purely-additive action; a mandatory backup on

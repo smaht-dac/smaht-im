@@ -9,7 +9,6 @@ import {
   loadAllFolders,
   switchFolder,
   createFolder,
-  pullFolderAsync,
   syncWorkingCopyToFolder,
   createSnapshot,
   renameFolder,
@@ -410,33 +409,42 @@ export default function App() {
     }
   };
 
-  const handleCreateFolder = ({ name, base, query, env, doLoad }) => {
+  const handleCreateFolder = ({ name, base, queries, env, doLoad }) => {
     setModal(null);
     try {
       const newName = createFolder(name, base);
+      const total = queries?.length ?? 0;
 
-      if (query) {
+      if (total > 0) {
         const prevLoaded = activeFolder?.name ?? null;
 
         try { switchFolder(newName); } catch (_) {}
 
-        const { cmd, kill } = pullFolderAsync(
+        // ACTIVE_FOLDER resolves to the real working copy — pulling the
+        // batch "into" it here is exactly the switchFolder-then-pull step
+        // this path always needed; pullBatchIntoFolderAsync already knows
+        // how to run several queries in order and stop at the first failure.
+        const { kill } = pullBatchIntoFolderAsync(
+          ACTIVE_FOLDER,
           env,
-          query,
+          queries,
+          (i, t, q) => onPullLine(`── Query ${i + 1}/${t}: ${q} ──`),
           onPullLine,
-          (success, info) => {
-            finishPull(success, !!info?.killed);
-            if (success) {
+          (result) => {
+            finishPull(result.success, result.killed);
+            if (result.success) {
               let copied = true;
               try { syncWorkingCopyToFolder(newName); } catch (e) {
                 copied = false;
                 pushLog(`sync error: ${e.message}`);
               }
               if (copied) {
-                // The query that pulled this folder's initial contents is the natural
-                // tracking query — set it so f/the staleness indicator work immediately,
-                // without a separate `t` step.
-                saveBranchMeta(newName, { __tracking__: { env, query } });
+                // A single query doubles as the natural tracking query, same as
+                // before — f/the staleness indicator work without a separate `t`
+                // step. With several disjoint queries there's no one query that
+                // re-running `f` could use, so tracking is left unset (same as
+                // any other query-less folder) rather than storing a misleading one.
+                if (total === 1) saveBranchMeta(newName, { __tracking__: { env, query: queries[0] } });
                 triggerRemoteCheck(newName);
               }
               if (!doLoad && prevLoaded) {
@@ -449,17 +457,19 @@ export default function App() {
             } else {
               const errOut = pullLinesRef.current.slice(-8).join('\n') || 'pull failed (no output)';
               pushLog(errOut);
-              const cancelled = !!info?.killed;
+              const cancelled = result.killed;
               let backupId = null;
               try { backupId = backupFolder(ACTIVE_FOLDER, `${cancelled ? 'cancelled' : 'failed'} pull for '${name}'`); } catch (_) {}
               if (prevLoaded) try { switchFolder(prevLoaded); } catch (_) {}
               try { deleteFolder(newName); } catch (_) {}
               const hint = backupId ? ` — partial data backed up (press ${bindingLabel(bindings.viewHistory)} on the active folder to recover)` : '';
-              notify(`Pull ${cancelled ? 'cancelled' : 'failed'} for '${name}' — folder removed${hint}`, true);
+              const progress = total > 1 ? ` after ${result.ranCount}/${total}` : '';
+              notify(`Pull ${cancelled ? 'cancelled' : 'failed'} for '${name}'${progress} — folder removed${hint}`, true);
             }
             refresh();
           },
         );
+        const cmd = total === 1 ? `pull: ${queries[0]}` : `pull-batch: ${total} queries`;
         pushLog(`$ ${cmd}`);
         startPull('create', newName, cmd, kill);
         notify(`Pulling inserts into '${name}'…`);

@@ -168,10 +168,37 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
   const [name,       setName]     = useState('');
   const [baseIdx,    setBaseIdx]  = useState(initBaseIdx);
   const [query,      setQuery]    = useState('');
+  const [queued,     setQueued]   = useState([]); // queries added chip-input style, run in order
   const [envIdx,     setEnvIdx]   = useState(0);
   const [doLoad, setDoLoad] = useState(true);
 
   useEffect(() => { setReady(fieldIdx); }, [fieldIdx]);
+
+  const submitCreate = (queries) => {
+    if (!name.trim()) return;
+    onConfirm({
+      name:    name.trim(),
+      base:    baseOpts[baseIdx].value,
+      queries,
+      env:     ENVS[envIdx],
+      doLoad,
+    });
+  };
+
+  // Chip-input on the Query field: Enter on non-empty text queues it and
+  // clears the field; Enter on an already-empty field creates the folder
+  // with whatever's queued (0 or more) — so "type, Enter, type, Enter, ...,
+  // Enter" both builds the query list and creates, and a plain Enter with
+  // nothing typed still creates a query-less folder as before.
+  const submitQuery = (value) => {
+    const trimmed = value.trim();
+    if (trimmed) {
+      setQueued(prev => [...prev, trimmed]);
+      setQuery('');
+      return;
+    }
+    submitCreate(queued);
+  };
 
   useInput((input, key) => {
     if (key.escape) { onCancel(); return; }
@@ -199,19 +226,21 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
     // Space toggles checkout
     if (fieldIdx === 4 && input === ' ') { setDoLoad(c => !c); return; }
 
-    // Enter submits (name required)
-    if (key.return && name.trim()) {
-      onConfirm({
-        name:       name.trim(),
-        base:       baseOpts[baseIdx].value,
-        query:      query.trim() || null,
-        env:        ENVS[envIdx],
-        doLoad,
-      });
+    if (fieldIdx === 2) {
+      // TextInput's own onSubmit already handles Enter once it's mounted
+      // (readyField === 2) — only fall back to handling it here for the
+      // one-tick window before it mounts, otherwise both fire.
+      if (key.return && readyField !== 2) { submitQuery(query); return; }
+      if (key.backspace && !query) { setQueued(prev => prev.slice(0, -1)); return; } // remove last queued
+      return;
     }
+
+    // Enter submits (name required)
+    if (key.return) submitCreate(queued);
   });
 
   const fc = fi => fieldIdx === fi ? 'cyan' : 'gray'; // field label color
+  const enterLabel = fieldIdx === 2 && query.trim() ? 'Add query' : 'Create';
 
   return (
     <Dialog title="⊕  New Folder" titleColor="cyan" width={74}>
@@ -237,11 +266,23 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
         )}
       </Box>
 
+      {/* ── Queries queued so far ── */}
+      {queued.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color="gray">Queued to run in order:</Text>
+          {queued.map((q, i) => (
+            <Box key={i} paddingLeft={2}>
+              <Text color="white">{i + 1}. {trunc(q, 62)}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+
       {/* ── Query ── */}
       <Box marginTop={1}>
         <Text color={fc(2)}>{'Query   '}</Text>
         {readyField === 2
-          ? <TextInput value={query} onChange={setQuery} placeholder="?type=Donor&status=released" onSubmit={() => {}} />
+          ? <TextInput value={query} onChange={setQuery} placeholder="?type=Donor&status=released" onSubmit={submitQuery} />
           : <Text color={query ? 'white' : 'gray'}>{query || '?type=Donor&status=released'}</Text>}
       </Box>
 
@@ -268,9 +309,10 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
       </Box>
 
       <ButtonBar buttons={[
-        { key: 'Enter', label: 'Create',     color: 'green' },
-        { key: 'Tab',   label: 'Next field', color: 'cyan'  },
-        { key: 'Esc',   label: 'Cancel',     color: 'red'   },
+        { key: 'Enter',     label: enterLabel,    color: 'green' },
+        { key: 'Backspace', label: 'Remove last query', color: 'yellow' },
+        { key: 'Tab',       label: 'Next field',  color: 'cyan'  },
+        { key: 'Esc',       label: 'Cancel',      color: 'red'   },
       ]} />
     </Dialog>
   );
