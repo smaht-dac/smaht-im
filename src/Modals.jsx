@@ -173,7 +173,12 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
 
   useEffect(() => { setReady(fieldIdx); }, [fieldIdx]);
 
-  const submitCreate = (queries) => {
+  // Submitting from any field other than Query (e.g. after typing a query,
+  // then Tab-ing to Env/Checkout without pressing Enter to queue it first)
+  // must not silently drop whatever's still sitting in the Query field —
+  // it's visibly there, so it has to count. Folds it in alongside whatever
+  // was already queued via explicit Enter-to-add.
+  const submitCreate = () => {
     if (!name.trim()) {
       // Was a silent no-op before — pressing Enter to submit (e.g. right after
       // queueing a query) looked like nothing happened at all. Jump to the
@@ -183,10 +188,11 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
       return;
     }
     setError(null);
+    const trimmed = query.trim();
     onConfirm({
       name:    name.trim(),
       base:    baseOpts[baseIdx].value,
-      queries,
+      queries: trimmed ? [...queued, trimmed] : queued,
       env:     ENVS[envIdx],
       doLoad,
     });
@@ -204,7 +210,7 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
       setQuery('');
       return;
     }
-    submitCreate(queued);
+    submitCreate();
   };
 
   useInput((input, key) => {
@@ -243,7 +249,7 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
     }
 
     // Enter submits (name required)
-    if (key.return) submitCreate(queued);
+    if (key.return) submitCreate();
   });
 
   const fc = fi => fieldIdx === fi ? 'cyan' : 'gray'; // field label color
