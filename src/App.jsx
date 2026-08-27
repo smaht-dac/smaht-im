@@ -460,11 +460,26 @@ export default function App() {
               const cancelled = result.killed;
               let backupId = null;
               try { backupId = backupFolder(ACTIVE_FOLDER, `${cancelled ? 'cancelled' : 'failed'} pull for '${name}'`); } catch (_) {}
-              if (prevLoaded) try { switchFolder(prevLoaded); } catch (_) {}
-              try { deleteFolder(newName); } catch (_) {}
+              // deleteFolder refuses to delete the currently-loaded folder, so
+              // the restore has to succeed first — if it doesn't (prevLoaded
+              // itself no longer exists, e.g. deleted from elsewhere), newName
+              // stays loaded and can't be removed. Reflect that honestly rather
+              // than claiming "folder removed" regardless of what happened.
+              let removed = false;
+              if (!prevLoaded) {
+                try { deleteFolder(newName); removed = true; } catch (e) { pushLog(`cleanup error: ${e.message}`); }
+              } else {
+                try {
+                  switchFolder(prevLoaded);
+                  try { deleteFolder(newName); removed = true; } catch (e) { pushLog(`cleanup error: ${e.message}`); }
+                } catch (e) {
+                  pushLog(`restore error: ${e.message}`);
+                }
+              }
               const hint = backupId ? ` — partial data backed up (press ${bindingLabel(bindings.viewHistory)} on the active folder to recover)` : '';
               const progress = total > 1 ? ` after ${result.ranCount}/${total}` : '';
-              notify(`Pull ${cancelled ? 'cancelled' : 'failed'} for '${name}'${progress} — folder removed${hint}`, true);
+              const removalNote = removed ? ' — folder removed' : ` — '${name}' has partial data and is still loaded, remove it manually`;
+              notify(`Pull ${cancelled ? 'cancelled' : 'failed'} for '${name}'${progress}${removalNote}${hint}`, true);
             }
             refresh();
           },
