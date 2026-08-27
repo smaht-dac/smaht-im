@@ -169,11 +169,20 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
   const [queued,     setQueued]   = useState([]); // queries added chip-input style, run in order
   const [envIdx,     setEnvIdx]   = useState(0);
   const [doLoad, setDoLoad] = useState(true);
+  const [error,      setError]    = useState(null);
 
   useEffect(() => { setReady(fieldIdx); }, [fieldIdx]);
 
   const submitCreate = (queries) => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      // Was a silent no-op before — pressing Enter to submit (e.g. right after
+      // queueing a query) looked like nothing happened at all. Jump to the
+      // field that needs attention and say why, instead of staying inert.
+      setError('Name is required');
+      setField(0);
+      return;
+    }
+    setError(null);
     onConfirm({
       name:    name.trim(),
       base:    baseOpts[baseIdx].value,
@@ -246,9 +255,14 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
       <Box>
         <Text color={fc(0)}>{'Name    '}</Text>
         {readyField === 0
-          ? <TextInput value={name} onChange={setName} placeholder="my-folder" onSubmit={() => {}} />
+          ? <TextInput value={name} onChange={v => { setName(v); if (error) setError(null); }} placeholder="my-folder" onSubmit={() => {}} />
           : <Text color={name ? 'white' : 'gray'}>{name || 'my-folder'}</Text>}
       </Box>
+      {error && (
+        <Box marginTop={1}>
+          <Text color="red">✗ {error}</Text>
+        </Box>
+      )}
 
       {/* ── From (base branch) ── */}
       <Box marginTop={1}>
