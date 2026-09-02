@@ -361,16 +361,121 @@ export function ItemsPanel({
 
 const ITEM_DETAIL_WIDTH = 56;
 
-/** Read-only JSON preview of one item, shown to the right of ItemsPanel on Enter. */
-export function ItemDetailPanel({ item, height }) {
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** { text, color } segments for a primitive JSON value — no key portion. */
+function primitiveSegments(value) {
+  if (value === null) return [{ text: 'null', color: 'gray' }];
+  if (typeof value === 'boolean') return [{ text: String(value), color: 'magenta' }];
+  if (typeof value === 'number') return [{ text: String(value), color: 'yellow' }];
+  return [{ text: JSON.stringify(value), color: 'green' }];
+}
+
+/**
+ * Recursively flattens a JSON value into one row per line the tree view can
+ * render/cursor over. Each collapsible object/array contributes an opening
+ * row (collapsed: one summary row with an item/key count; expanded: its
+ * children flattened in as their own rows, plus a closing bracket row) —
+ * the same shape a code editor's JSON outline uses. `path` is a stable
+ * dotted key used only to look up/toggle collapse state in the `collapsed`
+ * Set; it isn't shown.
+ */
+function flattenJson(value, path, depth, key, collapsed, rows) {
+  const isArr = Array.isArray(value);
+  const isObj = isPlainObject(value);
+  const keySeg = key != null ? [{ text: `"${key}"`, color: 'cyan' }, { text: ': ', color: 'gray' }] : [];
+
+  if (isArr || isObj) {
+    const entries = isArr ? value.map((v, i) => [String(i), v]) : Object.entries(value);
+    const open  = isArr ? '[' : '{';
+    const close = isArr ? ']' : '}';
+    if (entries.length === 0) {
+      rows.push({ path, depth, collapsible: false, collapsed: false,
+        segments: [...keySeg, { text: open + close, color: 'white' }] });
+      return;
+    }
+    const isCollapsed = collapsed.has(path);
+    const countLabel = isArr ? `${entries.length} item${entries.length !== 1 ? 's' : ''}`
+                              : `${entries.length} key${entries.length !== 1 ? 's' : ''}`;
+    rows.push({
+      path, depth, collapsible: true, collapsed: isCollapsed,
+      segments: isCollapsed
+        ? [...keySeg, { text: open, color: 'white' }, { text: ` …${countLabel}… `, color: 'gray' }, { text: close, color: 'white' }]
+        : [...keySeg, { text: open, color: 'white' }],
+    });
+    if (!isCollapsed) {
+      for (const [k, v] of entries) flattenJson(v, `${path}.${k}`, depth + 1, isArr ? null : k, collapsed, rows);
+      rows.push({ path: `${path}.$close`, depth, collapsible: false, collapsed: false, segments: [{ text: close, color: 'white' }] });
+    }
+    return;
+  }
+
+  rows.push({ path, depth, collapsible: false, collapsed: false, segments: [...keySeg, ...primitiveSegments(value)] });
+}
+
+/** Truncate a list of colored segments to a total plain-text width, preserving color boundaries. */
+function truncSegments(segments, maxLen) {
+  let used = 0;
+  const out = [];
+  for (const seg of segments) {
+    if (used >= maxLen) break;
+    const remaining = maxLen - used;
+    if (seg.text.length <= remaining) {
+      out.push(seg);
+      used += seg.text.length;
+    } else {
+      out.push({ text: trunc(seg.text, remaining), color: seg.color });
+      used = maxLen;
+    }
+  }
+  return out;
+}
+
+/**
+ * Collapsible, scrollable JSON tree for one item, shown to the right of
+ * ItemsPanel on Enter. Controlled like every other panel here — selectedIdx
+ * (cursor into the flattened row list) and collapsed (which node paths are
+ * folded) both live in App.jsx state; this component only flattens/renders
+ * and reports intent via onSelect/onCollapsedChange.
+ */
+export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect, collapsed, onCollapsedChange }) {
   const width = ITEM_DETAIL_WIDTH;
   const innerWidth = width - 4; // border(2) + paddingX(2)
   const innerHeight = Math.max(1, height - 3); // border(2) + title row
 
-  const json = JSON.stringify(item.data ?? item, null, 2);
-  const lines = json.split('\n');
-  const visible = lines.slice(0, innerHeight);
-  const hiddenCount = lines.length - visible.length;
+  const rows = [];
+  flattenJson(item.data ?? item, 'root', 0, null, collapsed, rows);
+
+  // selectedIdx (App-owned) can go stale the instant collapse/expand changes
+  // how many rows there are — e.g. "collapse all" can shrink rows out from
+  // under whatever index was current. Every read below goes through this
+  // clamped value instead of the raw prop, so movement/toggle/collapse-all
+  // all agree on "the row actually on screen" even the same tick rows shrinks.
+  const clampedIdx = Math.min(selectedIdx, Math.max(0, rows.length - 1));
+
+  useInput((input, key) => {
+    if (!isFocused) return;
+    if (key.upArrow   || input === 'k') onSelect(Math.max(0, clampedIdx - 1));
+    if (key.downArrow || input === 'j') onSelect(Math.min(rows.length - 1, clampedIdx + 1));
+    if (key.return) {
+      const row = rows[clampedIdx];
+      if (!row?.collapsible) return;
+      const next = new Set(collapsed);
+      if (next.has(row.path)) next.delete(row.path); else next.add(row.path);
+      onCollapsedChange(next);
+    }
+    if (input === 'c') {
+      const all = new Set();
+      const collect = (v, path) => {
+        if (Array.isArray(v)) { all.add(path); v.forEach((c, i) => collect(c, `${path}.${i}`)); }
+        else if (isPlainObject(v)) { all.add(path); Object.entries(v).forEach(([k, c]) => collect(c, `${path}.${k}`)); }
+      };
+      collect(item.data ?? item, 'root');
+      onCollapsedChange(all);
+    }
+  }, { isActive: isFocused });
+
+  const { slice, offset } = visibleWindow(rows, clampedIdx, innerHeight);
 
   return (
     <Box
@@ -378,16 +483,35 @@ export function ItemDetailPanel({ item, height }) {
       height={height}
       flexDirection="column"
       borderStyle="single"
-      borderColor="cyan"
+      borderColor={isFocused ? 'green' : 'cyan'}
     >
       <Box paddingX={1}>
-        <Text bold color="cyan">{trunc(item.displayId || item.uuid || '', width - 4)}</Text>
+        <Text bold color={isFocused ? 'green' : 'cyan'}>{trunc(item.displayId || item.uuid || '', width - 4)}</Text>
       </Box>
+      {isFocused && (
+        <Box paddingX={1}>
+          <Text color="gray">Enter=toggle  c=collapse all  Esc=close</Text>
+        </Box>
+      )}
       <Box flexDirection="column" paddingX={1}>
-        {visible.map((line, i) => (
-          <Text key={i} color="white">{trunc(line, innerWidth)}</Text>
-        ))}
-        {hiddenCount > 0 && <Text color="gray">… {hiddenCount} more line{hiddenCount !== 1 ? 's' : ''}</Text>}
+        {slice.map((row, i) => {
+          const realIdx = i + offset;
+          const isCursor = isFocused && realIdx === clampedIdx;
+          const indent = '  '.repeat(row.depth);
+          const marker = row.collapsible ? (row.collapsed ? '▸ ' : '▾ ') : '  ';
+          const prefix = [{ text: indent + marker, color: 'gray' }];
+          const segments = isCursor
+            ? [{ text: indent + marker, color: 'green' }, ...row.segments.map(s => ({ text: s.text, color: 'green' }))]
+            : [...prefix, ...row.segments];
+          const shown = truncSegments(segments, innerWidth);
+          return (
+            <Box key={row.path + i}>
+              {shown.map((seg, si) => (
+                <Text key={si} bold={isCursor} color={seg.color}>{seg.text}</Text>
+              ))}
+            </Box>
+          );
+        })}
       </Box>
     </Box>
   );

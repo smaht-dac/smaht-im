@@ -134,6 +134,8 @@ export default function App() {
   const [notification,  setNote]        = useState(null); // { msg, isError }
   const [focus,         setFocus]       = useState('folders');
   const [viewDetail,    setViewDetail]  = useState(false); // item JSON preview, Items panel only — closes on focus change
+  const [detailCursor,    setDetailCursor]    = useState(0);        // cursor into ItemDetailPanel's flattened row list
+  const [detailCollapsed, setDetailCollapsed] = useState(new Set()); // node paths folded in the item JSON tree
   const [errorLog,      setErrorLog]    = useState([]);
   const [pullState,     setPullState]  = useState(null); // { kind, target, cmd, kill, lastLine, done, success, killed }
   const pullLinesRef = useRef([]);  // full output buffer for the in-flight/last pull — read by PullLogModal
@@ -171,10 +173,21 @@ export default function App() {
 
   useEffect(() => { refresh(); }, []);
 
-  // Item detail preview only makes sense while parked on an item in the
-  // Items panel — close it the moment focus moves anywhere else, regardless
-  // of which key caused that (Tab/Shift+Tab/h/l/folder or type selection).
-  useEffect(() => { if (focus !== 'items') setViewDetail(false); }, [focus]);
+  // Item detail preview only makes sense while parked on Items or inside the
+  // detail panel itself — close it the moment focus moves anywhere else,
+  // regardless of which key caused that (Tab/Shift+Tab/h/l/folder or type
+  // selection all funnel through the same `focus` state).
+  useEffect(() => {
+    if (focus !== 'items' && focus !== 'detail') setViewDetail(false);
+  }, [focus]);
+
+  // A different item's JSON has nothing in common with the last one's
+  // collapse state or cursor position — start fresh whenever the highlighted
+  // item changes, not just when the panel opens/closes.
+  useEffect(() => {
+    setDetailCursor(0);
+    setDetailCollapsed(new Set());
+  }, [itemIdx, currentType?.name]);
 
   // ── background remote checks ──────────────────────────────────────────────
 
@@ -276,19 +289,23 @@ export default function App() {
       return;
     }
 
+    // Detail only joins the cycle while it's actually open — otherwise l/Tab
+    // from Items wraps straight back to Folders same as always.
+    const focusOrder = viewDetail ? ['folders', 'types', 'items', 'detail'] : ['folders', 'types', 'items'];
     if ((key.tab && !key.shift) || input === 'l') {
-      setFocus(f => f === 'folders' ? 'types' : f === 'types' ? 'items' : 'folders');
+      setFocus(f => focusOrder[(focusOrder.indexOf(f) + 1) % focusOrder.length]);
       return;
     }
     if ((key.shift && key.tab) || input === 'h') {
-      setFocus(f => f === 'folders' ? 'items' : f === 'items' ? 'types' : 'folders');
+      setFocus(f => focusOrder[(focusOrder.indexOf(f) - 1 + focusOrder.length) % focusOrder.length]);
       return;
     }
 
-    // View/hide the highlighted item's raw JSON. Enter is structurally
-    // reserved (captureKey() refuses to let it be rebound — see
-    // keybindings.js), so like Tab/h/l this is a fixed key, not part of
-    // the bindings system.
+    // Open/close the item JSON preview. Enter is structurally reserved
+    // (captureKey() refuses to let it be rebound — see keybindings.js), so
+    // like Tab/h/l this is a fixed key, not part of the bindings system.
+    // Only opens/closes here — once focus is 'detail', Enter instead toggles
+    // collapse of the highlighted node, handled by ItemDetailPanel itself.
     if (key.return && focus === 'items') {
       if (currentItems[itemIdx]) setViewDetail(v => !v);
       return;
@@ -368,7 +385,7 @@ export default function App() {
       return;
     }
     if (key.escape) {
-      if (viewDetail) { setViewDetail(false); return; }
+      if (viewDetail) { setViewDetail(false); setFocus('items'); return; }
       setSelected(new Set());
       return;
     }
@@ -931,7 +948,15 @@ export default function App() {
               hints={itemHints}
             />
             {viewDetail && currentItems[itemIdx] && (
-              <ItemDetailPanel item={currentItems[itemIdx]} height={rowH} />
+              <ItemDetailPanel
+                item={currentItems[itemIdx]}
+                height={rowH}
+                isFocused={focus === 'detail'}
+                selectedIdx={detailCursor}
+                onSelect={setDetailCursor}
+                collapsed={detailCollapsed}
+                onCollapsedChange={setDetailCollapsed}
+              />
             )}
           </Box>
           <ErrorLogPanel
