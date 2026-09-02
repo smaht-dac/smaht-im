@@ -254,6 +254,11 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
 
 // ── ItemsPanel ────────────────────────────────────────────────────────────────
 
+const UUID_W  = 18;
+const ID_W    = 26;
+const TITLE_W = 26;
+const GAP     = 3;
+
 export function ItemsPanel({
   itype,
   selectedIdx,
@@ -264,6 +269,7 @@ export function ItemsPanel({
   hints,
 }) {
   const items = itype?.items ?? [];
+  const hasDisplayTitle = items.some(i => i.data?.display_title);
 
   useInput((input, key) => {
     if (!isFocused) return;
@@ -298,13 +304,16 @@ export function ItemsPanel({
         )}
       </Box>
 
-      {/* Column headers */}
+      {/* Column headers — the "▶ "/"● " cursor+select markers on each row
+          add up to 4 columns of leading width, so the header needs the same
+          4-space lead-in or its labels drift left of the values under them. */}
       {items.length > 0 && (
-        <Box paddingX={1}>
+        <Box paddingX={2}>
           <Text color="gray" bold>
-            {'  '}
-            {'UUID'.padEnd(20)}
-            {'ID / Accession'.padEnd(30)}
+            {'    '}
+            {'UUID'.padEnd(UUID_W + GAP)}
+            {'ID / Accession'.padEnd(ID_W + GAP)}
+            {hasDisplayTitle && 'Display Title'.padEnd(TITLE_W + GAP)}
             {'Status'}
           </Text>
         </Box>
@@ -326,12 +335,13 @@ export function ItemsPanel({
         const realIdx = i + offset;
         const isCursor = realIdx === selectedIdx;
         const isSelected = selectedUuids.has(item.uuid);
-        const uuidShort = trunc(item.uuid, 18);
-        const idStr = trunc(item.displayId, 28);
+        const uuidShort = trunc(item.uuid, UUID_W);
+        const idStr = trunc(item.displayId, ID_W);
+        const titleStr = trunc(item.data?.display_title, TITLE_W);
         const statusStr = trunc(item.status, 14);
 
         return (
-          <Box key={item.uuid || realIdx} paddingX={1}>
+          <Box key={item.uuid || realIdx} paddingX={2}>
             <Text
               bold={isCursor && isFocused}
               color={
@@ -344,10 +354,9 @@ export function ItemsPanel({
             >
               {isCursor ? '▶ ' : '  '}
               {isSelected ? '● ' : '  '}
-              {uuidShort.padEnd(18)}
-              {'  '}
-              {idStr.padEnd(28)}
-              {'  '}
+              {uuidShort.padEnd(UUID_W + GAP)}
+              {idStr.padEnd(ID_W + GAP)}
+              {hasDisplayTitle && (titleStr || '—').padEnd(TITLE_W + GAP)}
               {statusStr}
             </Text>
           </Box>

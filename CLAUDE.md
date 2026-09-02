@@ -183,6 +183,12 @@ Each panel subtracts its border rows from height before computing `visibleWindow
 
 `visibleWindow(items, selectedIdx, maxRows)` in `Panels.jsx` returns a centered slice. It is pure and has no side effects. Do not replace it with a stateful scroll offset — the current approach keeps scrolling automatic.
 
+## Items panel columns
+
+`ItemsPanel`'s header row and each item row are two independent `<Text>` strings built from the same `UUID_W`/`ID_W`/`TITLE_W`/`GAP` constants — they only stay visually aligned because every field width in one exactly matches the other. The header's leading `'    '` (4 spaces) exists specifically to match a row's `▶ `/`● ` cursor+select markers (2 + 2 = 4 columns) — dropping to a 2-space header lead-in (as it briefly was) shifts every header label 2 columns left of the values under it. If you add, remove, or resize a column, update the width constant once and both header and rows follow automatically; don't hand-edit padding in only one of the two.
+
+The `Display Title` column is conditional — `hasDisplayTitle = items.some(i => i.data?.display_title)` — shown only when at least one item in the *current type* actually carries `display_title` (a computed property many, not all, encoded-based portal item types return), falling back to `—` per-row for items that don't. This mirrors the existing "conditional row" pattern used elsewhere (e.g. Overview's missing-inserts hint) rather than always reserving space for a column that's usually empty for a given type.
+
 ## Item detail panel
 
 `Enter`, while focused on the Items panel and an item is highlighted, toggles a collapsible JSON tree view (`ItemDetailPanel` in `Panels.jsx`) open in a third fixed-width column to the right of ItemsPanel, inside the same `flexDirection="row"` box as TypePanel/ItemsPanel — Yoga gives ItemsPanel's `flexGrow={1}` whatever width is left once TypePanel's and this panel's fixed widths are subtracted.
