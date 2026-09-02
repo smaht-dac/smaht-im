@@ -259,6 +259,11 @@ const ID_W    = 26;
 const TITLE_W = 26;
 const GAP     = 3;
 
+// display_title is a computed property (only ever present on live portal
+// responses, never in raw stored inserts); title is a real persisted field
+// some types (e.g. Publication) define instead. Either is worth showing.
+const itemTitle = (data) => data?.display_title ?? data?.title ?? null;
+
 export function ItemsPanel({
   itype,
   selectedIdx,
@@ -269,7 +274,7 @@ export function ItemsPanel({
   hints,
 }) {
   const items = itype?.items ?? [];
-  const hasDisplayTitle = items.some(i => i.data?.display_title);
+  const hasDisplayTitle = items.some(i => itemTitle(i.data));
 
   useInput((input, key) => {
     if (!isFocused) return;
@@ -313,7 +318,7 @@ export function ItemsPanel({
             {'    '}
             {'UUID'.padEnd(UUID_W + GAP)}
             {'ID / Accession'.padEnd(ID_W + GAP)}
-            {hasDisplayTitle && 'Display Title'.padEnd(TITLE_W + GAP)}
+            {hasDisplayTitle && 'Title'.padEnd(TITLE_W + GAP)}
             {'Status'}
           </Text>
         </Box>
@@ -337,7 +342,7 @@ export function ItemsPanel({
         const isSelected = selectedUuids.has(item.uuid);
         const uuidShort = trunc(item.uuid, UUID_W);
         const idStr = trunc(item.displayId, ID_W);
-        const titleStr = trunc(item.data?.display_title, TITLE_W);
+        const titleStr = trunc(itemTitle(item.data), TITLE_W);
         const statusStr = trunc(item.status, 14);
 
         return (
