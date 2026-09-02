@@ -183,6 +183,14 @@ Each panel subtracts its border rows from height before computing `visibleWindow
 
 `visibleWindow(items, selectedIdx, maxRows)` in `Panels.jsx` returns a centered slice. It is pure and has no side effects. Do not replace it with a stateful scroll offset — the current approach keeps scrolling automatic.
 
+## Item detail panel
+
+`Enter`, while focused on the Items panel and an item is highlighted, toggles a read-only JSON preview (`ItemDetailPanel` in `Panels.jsx`) open in a third fixed-width column to the right of ItemsPanel, inside the same `flexDirection="row"` box as TypePanel/ItemsPanel — Yoga gives ItemsPanel's `flexGrow={1}` whatever width is left once TypePanel's and this panel's fixed widths are subtracted. It shows `JSON.stringify(item.data, null, 2)`, one line per `<Text>`, each hard-truncated to the panel's inner width (not word-wrapped, consistent with `trunc()` usage elsewhere); if the JSON has more lines than fit the fixed height, the rest are dropped with a trailing `… N more lines` rather than made scrollable — same fixed-height-no-scroll-state philosophy as `visibleWindow` above, just without the centering (there's no independent cursor inside the JSON to center on).
+
+`Enter` is a hardcoded key here, not part of the `bindings` system — like Tab/h/l panel-cycling, it can't be, since `captureKey()` in `keybindings.js` refuses to let Esc/Enter/Tab/arrows be captured for rebinding at all.
+
+**Auto-close, not a toggle-per-item:** `viewDetail` (`App.jsx`) is a single boolean, closed by a `useEffect` the instant `focus !== 'items'` — covers every way focus can leave Items (Tab, Shift+Tab, h, l, selecting a folder/type) without needing to remember to close it at each call site individually. While open it stays open and live-updates as the cursor moves between items (driven straight off `currentItems[itemIdx]`, no separate "which item" state to keep in sync) — it only closes on leaving the Items panel entirely, or explicitly via `Enter` again (toggle) or `Esc` (checked before `Esc`'s existing "clear selection" behavior, so closing the preview doesn't also blow away a multi-select in progress).
+
 ## Error log persistence
 
 The in-app `errorLog` state (shown in the Log panel and the `L` modal) is capped at 50 in-memory entries and is lost on quit. `appendLog(message)` in `core.js` additionally writes every entry to `~/.smaht-im/imc.log`, one timestamped line per entry, trimmed to the last `LOG_LINES` (500) lines on every write — small enough (well under ~100 KB at typical entry length) to never need manual cleanup.

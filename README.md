@@ -147,6 +147,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
 | `ctrl+a` | Items | Select all items in the current type |
+| `Enter` | Items | View highlighted item's raw JSON in a panel on the right — closes when focus leaves Items |
 | `Esc` | Items | Clear item selection |
 | `Tab` / `Shift+Tab` | Global | Move focus between panels |
 | `R` | Global | Refresh all folders from disk |

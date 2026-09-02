@@ -293,7 +293,7 @@ export function ItemsPanel({
           <Text color="gray">
             {' '}{hints?.select ?? 'Space'}=sel{'  '}
             {hints?.selectAll ?? 'ctrl+a'}=all{'  '}
-            {hints?.move ?? 'm'}=move{'  '}Esc=clr
+            {hints?.move ?? 'm'}=move{'  '}Enter=view{'  '}Esc=clr
           </Text>
         )}
       </Box>
@@ -353,6 +353,42 @@ export function ItemsPanel({
           </Box>
         );
       })}
+    </Box>
+  );
+}
+
+// ── ItemDetailPanel ──────────────────────────────────────────────────────────
+
+const ITEM_DETAIL_WIDTH = 56;
+
+/** Read-only JSON preview of one item, shown to the right of ItemsPanel on Enter. */
+export function ItemDetailPanel({ item, height }) {
+  const width = ITEM_DETAIL_WIDTH;
+  const innerWidth = width - 4; // border(2) + paddingX(2)
+  const innerHeight = Math.max(1, height - 3); // border(2) + title row
+
+  const json = JSON.stringify(item.data ?? item, null, 2);
+  const lines = json.split('\n');
+  const visible = lines.slice(0, innerHeight);
+  const hiddenCount = lines.length - visible.length;
+
+  return (
+    <Box
+      width={width}
+      height={height}
+      flexDirection="column"
+      borderStyle="single"
+      borderColor="cyan"
+    >
+      <Box paddingX={1}>
+        <Text bold color="cyan">{trunc(item.displayId || item.uuid || '', width - 4)}</Text>
+      </Box>
+      <Box flexDirection="column" paddingX={1}>
+        {visible.map((line, i) => (
+          <Text key={i} color="white">{trunc(line, innerWidth)}</Text>
+        ))}
+        {hiddenCount > 0 && <Text color="gray">… {hiddenCount} more line{hiddenCount !== 1 ? 's' : ''}</Text>}
+      </Box>
     </Box>
   );
 }

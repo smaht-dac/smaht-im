@@ -545,6 +545,7 @@ function buildHelpRows(bindings) {
     [b('moveItems'),                      'Move selected items to another folder'],
     [b('selectAll'),                      'Select all items in the current type'],
     [b('sync'),                           'Refresh highlighted item from portal'],
+    ['  Enter',                           'View highlighted item\'s raw JSON — closes when focus leaves Items'],
     ['  Esc',                             'Clear all selections'],
     ['', ''],
     ['Remote tracking', ''],

@@ -41,7 +41,7 @@ import {
   bindingLabel,
 } from './keybindings.js';
 
-import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ErrorLogPanel } from './Panels.jsx';
+import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ItemDetailPanel, ErrorLogPanel } from './Panels.jsx';
 import {
   NewFolderModal,
   RenameModal,
@@ -75,6 +75,7 @@ function Footer({ focus, bindings, pulling }) {
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
+    { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
     { key: bindingLabel(kb.deleteFolder), desc: 'Delete',  active: focus === 'folders' },
     { key: bindingLabel(kb.sync),         desc: 'Sync',    active: focus === 'folders' || focus === 'items' },
@@ -132,6 +133,7 @@ export default function App() {
   const [modal,         setModal]       = useState(null);
   const [notification,  setNote]        = useState(null); // { msg, isError }
   const [focus,         setFocus]       = useState('folders');
+  const [viewDetail,    setViewDetail]  = useState(false); // item JSON preview, Items panel only — closes on focus change
   const [errorLog,      setErrorLog]    = useState([]);
   const [pullState,     setPullState]  = useState(null); // { kind, target, cmd, kill, lastLine, done, success, killed }
   const pullLinesRef = useRef([]);  // full output buffer for the in-flight/last pull — read by PullLogModal
@@ -168,6 +170,11 @@ export default function App() {
   }, [folderIdx]);
 
   useEffect(() => { refresh(); }, []);
+
+  // Item detail preview only makes sense while parked on an item in the
+  // Items panel — close it the moment focus moves anywhere else, regardless
+  // of which key caused that (Tab/Shift+Tab/h/l/folder or type selection).
+  useEffect(() => { if (focus !== 'items') setViewDetail(false); }, [focus]);
 
   // ── background remote checks ──────────────────────────────────────────────
 
@@ -278,6 +285,15 @@ export default function App() {
       return;
     }
 
+    // View/hide the highlighted item's raw JSON. Enter is structurally
+    // reserved (captureKey() refuses to let it be rebound — see
+    // keybindings.js), so like Tab/h/l this is a fixed key, not part of
+    // the bindings system.
+    if (key.return && focus === 'items') {
+      if (currentItems[itemIdx]) setViewDetail(v => !v);
+      return;
+    }
+
     // Folders panel actions
     if (matches(bindings.rename, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
@@ -352,6 +368,7 @@ export default function App() {
       return;
     }
     if (key.escape) {
+      if (viewDetail) { setViewDetail(false); return; }
       setSelected(new Set());
       return;
     }
@@ -913,6 +930,9 @@ export default function App() {
               isFocused={focus === 'items'}
               hints={itemHints}
             />
+            {viewDetail && currentItems[itemIdx] && (
+              <ItemDetailPanel item={currentItems[itemIdx]} height={rowH} />
+            )}
           </Box>
           <ErrorLogPanel
             errors={errorLog}
