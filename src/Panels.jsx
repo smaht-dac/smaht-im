@@ -457,7 +457,7 @@ export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect
     if (!isFocused) return;
     if (key.upArrow   || input === 'k') onSelect(Math.max(0, clampedIdx - 1));
     if (key.downArrow || input === 'j') onSelect(Math.min(rows.length - 1, clampedIdx + 1));
-    if (key.return) {
+    if (key.return || input === ' ') {
       const row = rows[clampedIdx];
       if (!row?.collapsible) return;
       const next = new Set(collapsed);
@@ -490,7 +490,7 @@ export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect
       </Box>
       {isFocused && (
         <Box paddingX={1}>
-          <Text color="gray">Enter=toggle  c=collapse all  Esc=close</Text>
+          <Text color="gray">Enter/Space=toggle  c=collapse all  Esc=close</Text>
         </Box>
       )}
       <Box flexDirection="column" paddingX={1}>

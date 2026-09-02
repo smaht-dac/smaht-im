@@ -549,7 +549,7 @@ function buildHelpRows(bindings) {
     ['', ''],
     ['Item detail panel (Tab/l to enter, once open)', ''],
     ['  ↑↓ / jk',                          'Move within the JSON tree'],
-    ['  Enter',                            'Expand / collapse the highlighted node'],
+    ['  Enter / Space',                    'Expand / collapse the highlighted node'],
     ['  c',                                'Collapse every node'],
     ['  Esc',                              'Close and return to Items'],
     ['  Esc',                             'Clear all selections'],

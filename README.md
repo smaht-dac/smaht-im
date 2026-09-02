@@ -150,7 +150,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right — closes when focus leaves Items |
 | `Tab` / `l` | Items | Move focus into the JSON tree panel (only while it's open) |
 | `↑↓` / `jk` | Item detail | Move within the JSON tree |
-| `Enter` | Item detail | Expand / collapse the highlighted node |
+| `Enter` / `Space` | Item detail | Expand / collapse the highlighted node |
 | `c` | Item detail | Collapse every node |
 | `Esc` | Items / Item detail | Clear item selection, or close the JSON tree panel |
 | `Tab` / `Shift+Tab` | Global | Move focus between panels |
