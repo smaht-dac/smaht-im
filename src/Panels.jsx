@@ -255,8 +255,8 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
 // ── ItemsPanel ────────────────────────────────────────────────────────────────
 
 const UUID_W  = 18;
-const ID_W    = 26;
-const TITLE_W = 26;
+const ID_W    = 16; // accessions/submitted_ids are typically ~12-14 chars — was 26, leaving a wide gap before Title
+const TITLE_W = 32;
 const GAP     = 3;
 
 // display_title is a computed property (only ever present on live portal
@@ -297,11 +297,14 @@ export function ItemsPanel({
       borderStyle="single"
       borderColor={isFocused ? 'green' : 'gray'}
     >
-      {/* Title */}
+      {/* Title — wrap="truncate-end" everywhere in this panel: when the item
+          detail panel is open it takes a fixed slice of width away from this
+          one's flexGrow, and plain wrapping text onto extra terminal lines
+          reads far worse here than losing the tail end of a row. */}
       <Box paddingX={1}>
-        <Text bold color={isFocused ? 'green' : 'white'}>{title}</Text>
+        <Text bold color={isFocused ? 'green' : 'white'} wrap="truncate-end">{title}</Text>
         {isFocused && (
-          <Text color="gray">
+          <Text color="gray" wrap="truncate-end">
             {' '}{hints?.select ?? 'Space'}=sel{'  '}
             {hints?.selectAll ?? 'ctrl+a'}=all{'  '}
             {hints?.move ?? 'm'}=move{'  '}Enter=view{'  '}Esc=clr
@@ -314,7 +317,7 @@ export function ItemsPanel({
           4-space lead-in or its labels drift left of the values under them. */}
       {items.length > 0 && (
         <Box paddingX={2}>
-          <Text color="gray" bold>
+          <Text color="gray" bold wrap="truncate-end">
             {'    '}
             {'UUID'.padEnd(UUID_W + GAP)}
             {'ID / Accession'.padEnd(ID_W + GAP)}
@@ -349,6 +352,7 @@ export function ItemsPanel({
           <Box key={item.uuid || realIdx} paddingX={2}>
             <Text
               bold={isCursor && isFocused}
+              wrap="truncate-end"
               color={
                 isCursor && isFocused
                   ? 'green'
@@ -452,8 +456,7 @@ function truncSegments(segments, maxLen) {
  * folded) both live in App.jsx state; this component only flattens/renders
  * and reports intent via onSelect/onCollapsedChange.
  */
-export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect, collapsed, onCollapsedChange }) {
-  const width = ITEM_DETAIL_WIDTH;
+export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFocused, selectedIdx, onSelect, collapsed, onCollapsedChange, inModal = false }) {
   const innerWidth = width - 4; // border(2) + paddingX(2)
   const innerHeight = Math.max(1, height - 3); // border(2) + title row
 
@@ -504,7 +507,9 @@ export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect
       </Box>
       {isFocused && (
         <Box paddingX={1}>
-          <Text color="gray">Enter/Space=toggle  c=collapse all  Esc=close</Text>
+          <Text color="gray">
+            Enter/Space=toggle  c=collapse all  {inModal ? 'z/Esc=close' : 'Esc=close  z=full view'}
+          </Text>
         </Box>
       )}
       <Box flexDirection="column" paddingX={1}>
@@ -514,14 +519,24 @@ export function ItemDetailPanel({ item, height, isFocused, selectedIdx, onSelect
           const indent = '  '.repeat(row.depth);
           const marker = row.collapsible ? (row.collapsed ? '▸ ' : '▾ ') : '  ';
           const prefix = [{ text: indent + marker, color: 'gray' }];
-          const segments = isCursor
-            ? [{ text: indent + marker, color: 'green' }, ...row.segments.map(s => ({ text: s.text, color: 'green' }))]
-            : [...prefix, ...row.segments];
+          const segments = [...prefix, ...row.segments];
           const shown = truncSegments(segments, innerWidth);
+          if (isCursor) {
+            // A solid highlighted bar, not just colored text — filled to the
+            // full row width so it reads unmistakably as "the current line"
+            // even mid-scan, the way a code editor's cursorline does.
+            const usedLen = shown.reduce((n, s) => n + s.text.length, 0);
+            const text = shown.map(s => s.text).join('') + ' '.repeat(Math.max(0, innerWidth - usedLen));
+            return (
+              <Box key={row.path + i}>
+                <Text bold backgroundColor="green" color="black">{text}</Text>
+              </Box>
+            );
+          }
           return (
             <Box key={row.path + i}>
               {shown.map((seg, si) => (
-                <Text key={si} bold={isCursor} color={seg.color}>{seg.text}</Text>
+                <Text key={si} color={seg.color}>{seg.text}</Text>
               ))}
             </Box>
           );

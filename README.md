@@ -152,6 +152,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `↑↓` / `jk` | Item detail | Move within the JSON tree |
 | `Enter` / `Space` | Item detail | Expand / collapse the highlighted node |
 | `c` | Item detail | Collapse every node |
+| `z` | Items / Item detail | Open the JSON tree full-screen (same commands apply); `z`/`Esc` closes it |
 | `Esc` | Items / Item detail | Clear item selection, or close the JSON tree panel |
 | `Tab` / `Shift+Tab` | Global | Move focus between panels |
 | `R` | Global | Refresh all folders from disk |

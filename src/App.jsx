@@ -61,12 +61,13 @@ import {
   ItemSyncResultModal,
   HistoryModal,
   PullLogModal,
+  ItemDetailModal,
   NotificationBar,
 } from './Modals.jsx';
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-function Footer({ focus, bindings, pulling }) {
+function Footer({ focus, bindings, pulling, viewDetail }) {
   const kb = bindings;
   const actions = [
     { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
@@ -97,6 +98,9 @@ function Footer({ focus, bindings, pulling }) {
       { key: bindingLabel(kb.viewPull),   desc: 'View Pull',   active: true },
       { key: bindingLabel(kb.cancelPull), desc: 'Cancel Pull', active: true },
     ] : []),
+    // Only shown while the item JSON preview is actually open — z has
+    // nothing to zoom into otherwise.
+    ...(viewDetail ? [{ key: 'z', desc: 'Full View', active: true }] : []),
   ];
 
   return (
@@ -308,6 +312,16 @@ export default function App() {
     // collapse of the highlighted node, handled by ItemDetailPanel itself.
     if (key.return && focus === 'items') {
       if (currentItems[itemIdx]) setViewDetail(v => !v);
+      return;
+    }
+
+    // Zoom the item JSON preview to a full-screen modal — works whether
+    // you're still on Items or have already Tab'd into the side panel, as
+    // long as it's open. Like 'c' inside the detail panel, 'z' is hardcoded
+    // rather than added to the bindings system (no default action claims it,
+    // but a user-rebound one theoretically could — same caveat as 'c').
+    if (input === 'z' && viewDetail && currentItems[itemIdx]) {
+      setModal('item-detail');
       return;
     }
 
@@ -706,6 +720,8 @@ export default function App() {
   if (modal) {
     const diff = modal === 'diff' ? computeDiff(ACTIVE_FOLDER, currentFolder?.name) : null;
     const fullLogLines = modal === 'fulllog' ? readLogFile() : null;
+    const detailModalWidth  = Math.min(140, Math.max(60, termWidth - 8));
+    const detailModalHeight = Math.max(10, termHeight - 6);
     // The active folder's own branch directory is never touched by a failed
     // create+pull cleanup (that partial data lived in the working copy,
     // ACTIVE_FOLDER, and is backed up under that key instead) — merge both
@@ -873,6 +889,18 @@ export default function App() {
             onClose={() => setModal(null)}
           />
         )}
+        {modal === 'item-detail' && currentItems[itemIdx] && (
+          <ItemDetailModal
+            item={currentItems[itemIdx]}
+            width={detailModalWidth}
+            height={detailModalHeight}
+            selectedIdx={detailCursor}
+            onSelect={setDetailCursor}
+            collapsed={detailCollapsed}
+            onCollapsedChange={setDetailCollapsed}
+            onClose={() => setModal(null)}
+          />
+        )}
       </Box>
     );
   }
@@ -969,7 +997,7 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} bindings={bindings} pulling={isPulling} />
+      <Footer focus={focus} bindings={bindings} pulling={isPulling} viewDetail={viewDetail} />
     </Box>
   );
 }

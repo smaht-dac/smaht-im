@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
 import { folderLabel, LOG_FILE } from './core.js';
-import { trunc, Spinner } from './Panels.jsx';
+import { trunc, Spinner, ItemDetailPanel } from './Panels.jsx';
 import {
   DEFAULT_BINDINGS,
   bindingLabel,
@@ -551,6 +551,7 @@ function buildHelpRows(bindings) {
     ['  ↑↓ / jk',                          'Move within the JSON tree'],
     ['  Enter / Space',                    'Expand / collapse the highlighted node'],
     ['  c',                                'Collapse every node'],
+    ['  z',                                'Open the same view full-screen (z or Esc to close it)'],
     ['  Esc',                              'Close and return to Items'],
     ['  Esc',                             'Clear all selections'],
     ['', ''],
@@ -775,6 +776,33 @@ export function PullLogModal({ pull, lines, cancelKey, viewKey, onCancel, onClos
       footerNote={!pull.done ? `[${cancelKey}] cancel` : ''}
       closeKey={viewKey}
       onClose={onClose}
+    />
+  );
+}
+
+// ── ItemDetailModal ───────────────────────────────────────────────────────────
+// Full-screen version of ItemDetailPanel (Panels.jsx) — same component, same
+// selectedIdx/collapsed props from App.jsx (so scroll position and collapse
+// state carry over exactly as they were in the side panel), just bigger and
+// always focused. Opening/closing this never touches viewDetail/focus — it's
+// a read-only overlay on top of whatever the side panel already had going.
+
+export function ItemDetailModal({ item, width, height, selectedIdx, onSelect, collapsed, onCollapsedChange, onClose }) {
+  useInput((input, key) => {
+    if (key.escape || input === 'z') onClose();
+  });
+
+  return (
+    <ItemDetailPanel
+      item={item}
+      width={width}
+      height={height}
+      isFocused
+      inModal
+      selectedIdx={selectedIdx}
+      onSelect={onSelect}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
     />
   );
 }
