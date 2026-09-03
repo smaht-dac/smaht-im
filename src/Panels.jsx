@@ -503,12 +503,12 @@ export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFoc
       borderColor={isFocused ? 'green' : 'cyan'}
     >
       <Box paddingX={1}>
-        <Text bold color={isFocused ? 'green' : 'cyan'}>{trunc(item.displayId || item.uuid || '', width - 4)}</Text>
+        <Text bold color={isFocused ? 'green' : 'cyan'} wrap="truncate-end">{trunc(item.displayId || item.uuid || '', width - 4)}</Text>
       </Box>
       {isFocused && (
         <Box paddingX={1}>
-          <Text color="gray">
-            Enter/Space=toggle  c=collapse all  {inModal ? 'z/Esc=close' : 'Esc=close  z=full view'}
+          <Text color="gray" wrap="truncate-end">
+            Enter/Space=toggle  c=collapse  {inModal ? 'z/Esc=close' : 'z=full  Esc=close'}
           </Text>
         </Box>
       )}
@@ -522,14 +522,18 @@ export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFoc
           const segments = [...prefix, ...row.segments];
           const shown = truncSegments(segments, innerWidth);
           if (isCursor) {
-            // A solid highlighted bar, not just colored text — filled to the
-            // full row width so it reads unmistakably as "the current line"
-            // even mid-scan, the way a code editor's cursorline does.
+            // A subtle dark-gray bar behind the row, filled to the full
+            // width so "the current line" still reads clearly at a glance —
+            // but each segment keeps its own syntax color instead of being
+            // flattened to one, so the highlight doesn't fight the colors.
             const usedLen = shown.reduce((n, s) => n + s.text.length, 0);
-            const text = shown.map(s => s.text).join('') + ' '.repeat(Math.max(0, innerWidth - usedLen));
+            const padding = ' '.repeat(Math.max(0, innerWidth - usedLen));
             return (
               <Box key={row.path + i}>
-                <Text bold backgroundColor="green" color="black">{text}</Text>
+                {shown.map((seg, si) => (
+                  <Text key={si} backgroundColor="gray" color={seg.color}>{seg.text}</Text>
+                ))}
+                {padding && <Text backgroundColor="gray">{padding}</Text>}
               </Box>
             );
           }
