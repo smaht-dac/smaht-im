@@ -144,8 +144,10 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
+| `y` | Folders | **Copy** every item in the folder to the clipboard as JSON (`{ typeName: [...] }`) |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
+| `y` | Items | **Copy** selected items (or the highlighted one) to the clipboard as JSON |
 | `ctrl+a` | Items | Select all items in the current type |
 | `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right — closes when focus leaves Items |
 | `Tab` / `l` | Items | Move focus into the JSON tree panel (only while it's open) |
@@ -212,6 +214,7 @@ Default keybindings:
 | Delete folder | `D` |
 | Export de-identified copy | `e` |
 | Move items | `m` |
+| Copy to clipboard | `y` |
 | Toggle / load | `Space` |
 | Select all | `ctrl+a` |
 | Refresh | `R` |

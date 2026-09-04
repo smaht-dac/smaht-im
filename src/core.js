@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 export const REPO_ROOT =
   process.env.SMAHT_REPO_ROOT ?? path.join(os.homedir(), 'dbmi', 'smaht-portal');
@@ -1131,4 +1131,16 @@ export function anonymizeFolder(sourceName, opts = {}) {
 
   writeJson(path.join(outDir, '_ANONYMIZATION_REPORT.json'), report);
   return { outDir, report };
+}
+
+// ── clipboard ─────────────────────────────────────────────────────────────────
+
+/**
+ * Copy text to the system clipboard via pbcopy. macOS-only — this tool has
+ * no other supported platform (see CLAUDE.md), so a cross-platform library
+ * would be unused weight. Throws if pbcopy isn't on PATH or exits non-zero;
+ * callers should catch and notify rather than let it crash the app.
+ */
+export function copyToClipboard(text) {
+  execFileSync('pbcopy', [], { input: text });
 }

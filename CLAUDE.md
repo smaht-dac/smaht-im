@@ -301,6 +301,16 @@ Two entry points share this one implementation — keep them that way rather tha
 
 This is a generic heuristic, not a compliance decision — see the README's "Sharing inserts data safely" section before changing the default policy or telling someone it's safe to send something.
 
+## Copy to clipboard
+
+`y`, context-aware like `f`/`sync`: in the Folders panel, copies every item across all types in the highlighted folder; in the Items panel, copies the selected items (falling back to just the highlighted one if nothing's selected via `Space`). Any other focus (Types, the item detail panel) just notifies "Select a folder or item(s) to copy" — those aren't in scope for this action.
+
+Folder copy shapes the JSON as `{ typeName: [...items] }`, matching the on-disk file layout exactly (one key per type file, each an array of that type's raw records) — not a flat list, so the copied text stays recognizable as "the folder" if pasted into a file. Item copy unwraps to a bare object when there's exactly one item (pasting one thing should give you that thing, not a one-element array around it), and an array only when there are several. Both read the same `data` field every item already carries (`{ uuid, displayId, status, data }` — see `loadFolder` in `core.js`), so this needs no extra core.js call beyond the clipboard write itself; `currentFolder`/`currentItems` in `App.jsx` already hold full item data, no re-read from disk.
+
+`copyToClipboard(text)` in `core.js` shells out to `pbcopy` via `execFileSync` — macOS-only, deliberately: this tool has no other supported platform (see "What not to change without good reason"), so a cross-platform clipboard library would be dead weight for every other user. Throws if `pbcopy` isn't on `PATH`; the caller catches and `notify`s rather than crashing.
+
+**Unlike anonymized export, this is raw data, unscrubbed** — copying is presumed to be for the user's own immediate local use (pasting into a scratch file, a REPL, a `jq` pipe), not for sharing. If that assumption ever stops holding — e.g. someone wants a "copy to send to someone else" action — that's an anonymized-export use case, not this one; route it through `anonymizeFolder` instead of adding a scrub step here.
+
 ## How smaht-portal actually loads inserts (background)
 
 Researched 2026-08-20 in `~/dbmi/smaht-portal`, prompted by the question "could inserts be served to the browser instead of via `make deploy1`/`deploy2`?" Recorded here so it doesn't need re-researching.

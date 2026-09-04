@@ -32,6 +32,7 @@ import {
   listBackups,
   restoreBackup,
   backupFolder,
+  copyToClipboard,
 } from './core.js';
 
 import {
@@ -76,6 +77,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
+    { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
     { key: bindingLabel(kb.deleteFolder), desc: 'Delete',  active: focus === 'folders' },
@@ -396,6 +398,34 @@ export default function App() {
     if (matches(bindings.selectAll, input, key)) {
       setSelected(new Set(currentItems.map(i => i.uuid)));
       notify(`Selected all ${currentItems.length} items`);
+      return;
+    }
+    if (matches(bindings.copyClipboard, input, key)) {
+      try {
+        if (focus === 'folders') {
+          if (!currentFolder) { notify('No folder selected', true); return; }
+          const payload = {};
+          for (const t of currentFolder.types) payload[t.name] = t.items.map(i => i.data);
+          copyToClipboard(JSON.stringify(payload, null, 2));
+          notify(`Copied ${currentFolder.totalItems} item(s) from '${folderLabel(currentFolder.name)}' to clipboard`);
+        } else if (focus === 'items') {
+          const selected = currentItems.filter(i => selectedUuids.has(i.uuid));
+          // No selection falls back to just the highlighted item — same
+          // "context you're looking at" default as moveItems's own logic
+          // would need if it didn't require an explicit selection.
+          const toCopy = selected.length > 0 ? selected : (currentItems[itemIdx] ? [currentItems[itemIdx]] : []);
+          if (toCopy.length === 0) { notify('No item selected', true); return; }
+          // A single item copies unwrapped — pasting one thing should give
+          // you that thing, not a one-element array around it.
+          const payload = toCopy.length === 1 ? toCopy[0].data : toCopy.map(i => i.data);
+          copyToClipboard(JSON.stringify(payload, null, 2));
+          notify(`Copied ${toCopy.length} item${toCopy.length !== 1 ? 's' : ''} to clipboard`);
+        } else {
+          notify('Select a folder or item(s) to copy', true);
+        }
+      } catch (e) {
+        notify(`Copy failed: ${e.message}`, true);
+      }
       return;
     }
     if (key.escape) {
