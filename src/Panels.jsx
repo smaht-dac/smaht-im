@@ -67,7 +67,7 @@ function remoteIndicator(rs) {
   return { text: '↓', color: 'yellow' };
 }
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus }) {
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames }) {
 
   useInput((input, key) => {
     if (!isFocused) return;
@@ -76,10 +76,10 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   });
 
   // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
-  // Overhead: border(2) + paddingX(2) + cursor(2) + active(2) + count(8) + remote(1) + age(4) = 21
+  // Overhead: border(2) + paddingX(2) + cursor(2) + multiselect(2) + active(2) + count(8) + remote(1) + age(4) = 23
   const DATE_W   = 4;
   const REMOTE_W = 1; // indicator is always a single glyph: ~ ? ! ✓ ↓
-  const overhead  = 20 + DATE_W + REMOTE_W;
+  const overhead  = 22 + DATE_W + REMOTE_W;
   const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
   const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
   const nameWidth  = panelWidth - overhead;
@@ -106,7 +106,8 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
       {/* Folder list */}
       {slice.map((folder, i) => {
         const realIdx = i + offset;
-        const isSelected = realIdx === selectedIdx;
+        const isCursor = realIdx === selectedIdx;
+        const isMultiSelected = selectedNames?.has(folder.name) ?? false;
         const shortName = folderLabel(folder.name);
         const rs  = remoteStatus?.get(folder.name);
         const ind = remoteIndicator(rs);
@@ -114,16 +115,19 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         return (
           <Box key={folder.name} paddingX={1}>
             <Text
-              bold={isSelected && isFocused}
+              bold={isCursor && isFocused}
               color={
-                isSelected && isFocused
+                isCursor && isFocused
                   ? 'green'
-                  : isSelected
+                  : isMultiSelected
+                  ? 'yellow'
+                  : isCursor
                   ? 'white'
                   : 'gray'
               }
             >
-              {isSelected ? '▶ ' : '  '}
+              {isCursor ? '▶ ' : '  '}
+              {isMultiSelected ? '✓ ' : '  '}
               {folder.isActive ? '● ' : '  '}
               {trunc(shortName, nameWidth)}
             </Text>

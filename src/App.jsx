@@ -78,6 +78,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'items' },
+    { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
     { key: bindingLabel(kb.deleteFolder), desc: 'Delete',  active: focus === 'folders' },
@@ -136,6 +137,8 @@ export default function App() {
   const [typeIdx,       setTypeIdx]     = useState(0);
   const [itemIdx,       setItemIdx]     = useState(0);
   const [selectedUuids, setSelected]   = useState(new Set());
+  const [selectedFolderNames, setSelectedFolderNames] = useState(new Set());
+  const [rangeAnchor, setRangeAnchor] = useState(null); // index marked by the first `v` press — 'items' or 'folders', whichever was focused
   const [modal,         setModal]       = useState(null);
   const [notification,  setNote]        = useState(null); // { msg, isError }
   const [focus,         setFocus]       = useState('folders');
@@ -186,6 +189,12 @@ export default function App() {
   useEffect(() => {
     if (focus !== 'items' && focus !== 'detail') setViewDetail(false);
   }, [focus]);
+
+  // A range anchor marked in one panel means nothing in another — e.g.
+  // marking row 3 in Folders, then tabbing to Items, shouldn't let a later
+  // `v` there silently pair with a Folders-panel index. Clear on any focus
+  // change rather than trying to track which panel an anchor belongs to.
+  useEffect(() => { setRangeAnchor(null); }, [focus]);
 
   // A different item's JSON has nothing in common with the last one's
   // collapse state or cursor position — start fresh whenever the highlighted
@@ -404,10 +413,24 @@ export default function App() {
       try {
         if (focus === 'folders') {
           if (!currentFolder) { notify('No folder selected', true); return; }
+          // Multiple selected folders merge type-by-type into one payload
+          // (a second folder's donor.json items append to the first's)
+          // rather than nesting per-folder — the shape stays exactly what
+          // you'd get copying one folder, just with more in each array.
+          const targets = selectedFolderNames.size > 0
+            ? folders.filter(f => selectedFolderNames.has(f.name))
+            : [currentFolder];
           const payload = {};
-          for (const t of currentFolder.types) payload[t.name] = t.items.map(i => i.data);
+          let total = 0;
+          for (const f of targets) {
+            for (const t of f.types) {
+              payload[t.name] = [...(payload[t.name] ?? []), ...t.items.map(i => i.data)];
+            }
+            total += f.totalItems;
+          }
           copyToClipboard(JSON.stringify(payload, null, 2));
-          notify(`Copied ${currentFolder.totalItems} item(s) from '${folderLabel(currentFolder.name)}' to clipboard`);
+          const label = targets.length === 1 ? `'${folderLabel(targets[0].name)}'` : `${targets.length} folders`;
+          notify(`Copied ${total} item(s) from ${label} to clipboard`);
         } else if (focus === 'items') {
           const selected = currentItems.filter(i => selectedUuids.has(i.uuid));
           // No selection falls back to just the highlighted item — same
@@ -428,7 +451,46 @@ export default function App() {
       }
       return;
     }
+    // Range select: first press marks the current row as the anchor (and
+    // selects it, so there's visible feedback something happened); second
+    // press — anywhere else in the list, in either direction — fills every
+    // row between the anchor and here, then clears the anchor so the next
+    // `v` starts a fresh range instead of extending this one indefinitely.
+    if (matches(bindings.rangeSelect, input, key)) {
+      if (focus === 'items') {
+        if (!currentItems[itemIdx]) return;
+        if (rangeAnchor === null) {
+          setRangeAnchor(itemIdx);
+          setSelected(prev => new Set(prev).add(currentItems[itemIdx].uuid));
+          notify('Range start marked — move and press v again to select through here');
+        } else {
+          const [from, to] = [Math.min(rangeAnchor, itemIdx), Math.max(rangeAnchor, itemIdx)];
+          const uuids = currentItems.slice(from, to + 1).map(i => i.uuid);
+          setSelected(prev => new Set([...prev, ...uuids]));
+          setRangeAnchor(null);
+          notify(`Selected ${uuids.length} item${uuids.length !== 1 ? 's' : ''}`);
+        }
+      } else if (focus === 'folders') {
+        if (!currentFolder) return;
+        if (rangeAnchor === null) {
+          setRangeAnchor(folderIdx);
+          setSelectedFolderNames(prev => new Set(prev).add(currentFolder.name));
+          notify('Range start marked — move and press v again to select through here');
+        } else {
+          const [from, to] = [Math.min(rangeAnchor, folderIdx), Math.max(rangeAnchor, folderIdx)];
+          const names = folders.slice(from, to + 1).map(f => f.name);
+          setSelectedFolderNames(prev => new Set([...prev, ...names]));
+          setRangeAnchor(null);
+          notify(`Selected ${names.length} folder${names.length !== 1 ? 's' : ''}`);
+        }
+      } else {
+        notify('Select a folder or item to mark a range', true);
+      }
+      return;
+    }
     if (key.escape) {
+      setRangeAnchor(null);
+      setSelectedFolderNames(new Set());
       if (viewDetail) { setViewDetail(false); setFocus('items'); return; }
       setSelected(new Set());
       return;
@@ -968,6 +1030,7 @@ export default function App() {
           height={contentHeight}
           isFocused={focus === 'folders'}
           remoteStatus={remoteStatus}
+          selectedNames={selectedFolderNames}
         />
 
         {/* Right: Overview + (Types | Items) + Log */}

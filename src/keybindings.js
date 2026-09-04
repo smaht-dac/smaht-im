@@ -25,6 +25,7 @@ export const DEFAULT_BINDINGS = {
   deleteFolder: { key: 'D',      ctrl: false, label: 'Delete folder' },
   moveItems:    { key: 'm',      ctrl: false, label: 'Move items' },
   copyClipboard: { key: 'y',     ctrl: false, label: 'Copy to clipboard (context-aware)' },
+  rangeSelect:  { key: 'v',      ctrl: false, label: 'Select range (context-aware)' },
   selectItem:   { key: ' ',      ctrl: false, label: 'Toggle / load (context-aware)' },
   selectAll:    { key: 'a',      ctrl: true,  label: 'Select all items' },
   sync:         { key: 'f',      ctrl: false, label: 'Sync from portal (context-aware)' },
