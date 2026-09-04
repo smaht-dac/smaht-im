@@ -522,25 +522,27 @@ export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFoc
           const segments = [...prefix, ...row.segments];
           const shown = truncSegments(segments, innerWidth);
           if (isCursor) {
-            // A subtle dark-gray bar behind the row, filled to the full
-            // width so "the current line" still reads clearly at a glance —
-            // but each segment keeps its own syntax color instead of being
-            // flattened to one, so the highlight doesn't fight the colors.
-            const usedLen = shown.reduce((n, s) => n + s.text.length, 0);
-            const padding = ' '.repeat(Math.max(0, innerWidth - usedLen));
+            // A faint backdrop behind just the text itself — NOT padded out
+            // to the full row width. A named ANSI color's darkest non-black
+            // background option is "gray" (an alias for blackBright), which
+            // read as too strong; this hex is deliberately darker than that
+            // palette offers. Each segment keeps its own syntax color rather
+            // than being flattened to one, so the highlight sits behind the
+            // tree instead of fighting its colors. wrap="truncate-end" is a
+            // hard backstop against ever spilling onto a second line — the
+            // padded full-width version of this used to do exactly that.
             return (
               <Box key={row.path + i}>
                 {shown.map((seg, si) => (
-                  <Text key={si} backgroundColor="gray" color={seg.color}>{seg.text}</Text>
+                  <Text key={si} backgroundColor="#303030" color={seg.color} wrap="truncate-end">{seg.text}</Text>
                 ))}
-                {padding && <Text backgroundColor="gray">{padding}</Text>}
               </Box>
             );
           }
           return (
             <Box key={row.path + i}>
               {shown.map((seg, si) => (
-                <Text key={si} color={seg.color}>{seg.text}</Text>
+                <Text key={si} color={seg.color} wrap="truncate-end">{seg.text}</Text>
               ))}
             </Box>
           );
