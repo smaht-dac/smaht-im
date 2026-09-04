@@ -145,6 +145,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
 | `y` | Folders | **Copy** every item in the folder (or all selected folders, merged) to the clipboard as JSON (`{ typeName: [...] }`) |
+| `y` | Types | **Copy** every item in the highlighted type to the clipboard as a plain JSON array |
 | `v` | Folders | **Range select** — mark the start here, move, press again to select every folder in between |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |

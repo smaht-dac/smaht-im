@@ -77,7 +77,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
-    { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'items' },
+    { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
@@ -443,8 +443,18 @@ export default function App() {
           const payload = toCopy.length === 1 ? toCopy[0].data : toCopy.map(i => i.data);
           copyToClipboard(JSON.stringify(payload, null, 2));
           notify(`Copied ${toCopy.length} item${toCopy.length !== 1 ? 's' : ''} to clipboard`);
+        } else if (focus === 'types') {
+          if (!currentType) { notify('No type selected', true); return; }
+          // A plain array, not { typeName: [...] } — this already IS one
+          // type, so the wrapper folder-copy needs to distinguish types
+          // from each other would just be redundant noise here. Matches
+          // the type's own file on disk (donor.json is itself just an
+          // array), same reasoning as folder-copy matching the folder shape.
+          const payload = currentType.items.map(i => i.data);
+          copyToClipboard(JSON.stringify(payload, null, 2));
+          notify(`Copied ${payload.length} item(s) from '${currentType.name}.json' to clipboard`);
         } else {
-          notify('Select a folder or item(s) to copy', true);
+          notify('Select a folder, type, or item(s) to copy', true);
         }
       } catch (e) {
         notify(`Copy failed: ${e.message}`, true);
