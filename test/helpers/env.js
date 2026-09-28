@@ -31,7 +31,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const FIXTURES_BIN = path.join(
+export const FIXTURES_BIN = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
   'fixtures',

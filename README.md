@@ -185,6 +185,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
 | `y` | Folders | **Copy** every item in the folder (or all selected folders, merged) to the clipboard as JSON (`{ typeName: [...] }`) |
 | `y` | Types | **Copy** every item in the highlighted type to the clipboard as a plain JSON array |
+| `E` | Types / Items | **Edit** the highlighted type's JSON file directly in `$EDITOR`/`$VISUAL` (falls back to `vi`), for hand-edits the app has no UI for, e.g. reordering objects so one that's referenced appears earlier in the file. Backs the folder up first (`H` to restore). If this folder is currently loaded, the edit is mirrored into the working copy immediately, so it isn't mistaken for an external edit and auto-snapshotted into a new folder next launch |
 | `v` | Folders | **Range select** — mark the start here, move, press again to select every folder in between |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
@@ -257,6 +258,7 @@ Default keybindings:
 | Export de-identified copy | `e` |
 | Move items | `m` |
 | Copy to clipboard | `y` |
+| Edit type file in `$EDITOR` | `E` |
 | Range select | `v` |
 | Toggle / load | `Space` |
 | Select all | `ctrl+a` |

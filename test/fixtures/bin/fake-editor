@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+/**
+ * Fake stand-in for $EDITOR/$VISUAL, used only by
+ * test/core.edit-file.test.js to exercise editTypeFile() in src/core.js
+ * without needing a real interactive editor or terminal.
+ *
+ * Behavior is controlled by env vars so tests can drive it:
+ *   FAKE_EDITOR_EXIT_CODE  - non-zero to simulate the user aborting the editor
+ *   FAKE_EDITOR_MODE       - 'append' (default): push a new item onto the
+ *                            JSON array at argv[2]
+ *                          - 'corrupt': overwrite the file with invalid JSON
+ *                          - 'noop': leave the file untouched
+ */
+import fs from 'node:fs';
+
+const filePath = process.argv[2];
+const mode = process.env.FAKE_EDITOR_MODE || 'append';
+const exitCode = Number(process.env.FAKE_EDITOR_EXIT_CODE ?? '0');
+
+if (exitCode === 0) {
+  if (mode === 'corrupt') {
+    fs.writeFileSync(filePath, '{ not valid json');
+  } else if (mode === 'append') {
+    const items = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    items.push({ uuid: `edited-${items.length}` });
+    fs.writeFileSync(filePath, JSON.stringify(items, null, 2));
+  }
+  // mode === 'noop': leave the file exactly as it was.
+}
+
+process.exit(exitCode);

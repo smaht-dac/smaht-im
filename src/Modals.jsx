@@ -544,6 +544,7 @@ function buildHelpRows(bindings) {
     ['', ''],
     ['Types panel (top-right)', ''],
     [b('copyClipboard'),                  'Copy every item in the highlighted type to the clipboard as JSON'],
+    [b('editFile'),                       'Open the highlighted type\'s JSON file in $EDITOR (also works from Items)'],
     ['', ''],
     ['Items panel (bottom-right)', ''],
     [`  ${selKey}`,                       'Toggle item selection (multi-select)'],

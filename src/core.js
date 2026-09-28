@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 
 export const REPO_ROOT =
   process.env.SMAHT_REPO_ROOT ?? path.join(os.homedir(), 'dbmi', 'smaht-portal');
@@ -627,6 +627,80 @@ export function restoreBackup(folderName, backupId) {
   }
   refreshWorkingCopyIfActive(folderName);
   return `Restored '${folderLabel(folderName)}' to backup from ${backupId}`;
+}
+
+// ── manual edit ───────────────────────────────────────────────────────────────
+
+const ALT_SCREEN_EXIT  = '\x1b[?1049l';
+const ALT_SCREEN_ENTER = '\x1b[?1049h';
+const SHOW_CURSOR      = '\x1b[?25h';
+const HIDE_CURSOR      = '\x1b[?25l';
+
+/**
+ * Open a folder's type file directly in the user's editor ($VISUAL, then
+ * $EDITOR, falling back to `vi`) for hand-edits the app has no UI for (e.g.
+ * reordering objects within the array, since some inserts reference others
+ * that must appear earlier in the same file). The folder is backed up
+ * first, same as every other write path in this file, so a bad hand-edit
+ * is always recoverable via restoreBackup.
+ *
+ * Suspends the TUI for the duration: releases raw-mode stdin and exits the
+ * alt-screen buffer before spawning, so the editor gets a normal terminal
+ * to itself, then restores both after. Exiting alt-screen explicitly
+ * (rather than leaving it on) matters here: it's a single on/off flag, not
+ * a stack, so if left on, the editor's own alt-screen enter/exit (e.g.
+ * vim's smcup/rmcup) would exit back to the primary screen instead of back
+ * to imc's when it quits.
+ *
+ * Critically, this also mirrors the edit into the working copy when this
+ * folder is the currently loaded one, exactly like syncFolderAsync/
+ * moveItems/restoreBackup already do. Without that, a hand-edit here would
+ * leave the working copy stale, and the very next loadAllFolders() would
+ * mistake that staleness for an external edit and auto-snapshot it into a
+ * spurious new folder (see refreshWorkingCopyIfActive above and
+ * loadAllFolders' divergence check). That auto-snapshotting is exactly the
+ * behavior this function exists to avoid triggering.
+ *
+ * Returns { edited: true } on success, or { edited: false, error } if the
+ * editor exited non-zero or the saved file isn't a valid JSON array. The
+ * file on disk is left exactly as the editor wrote it either way; this only
+ * reports whether it's safe to treat as a normal edit. Throws only for a
+ * precondition the caller should have already checked (missing file).
+ */
+export function editTypeFile(folderName, typeName) {
+  const filePath = path.join(resolveFolderPath(folderName), `${typeName}.json`);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`'${typeName}.json' not found in '${folderLabel(folderName)}'`);
+  }
+
+  backupFolder(folderName, `before manual edit: ${typeName}.json`);
+
+  const editor = process.env.VISUAL || process.env.EDITOR || 'vi';
+  const wasRaw = process.stdin.isRaw ?? false;
+  if (wasRaw) process.stdin.setRawMode(false);
+  process.stdout.write(SHOW_CURSOR + ALT_SCREEN_EXIT);
+
+  const result = spawnSync(editor, [filePath], { stdio: 'inherit' });
+
+  process.stdout.write(ALT_SCREEN_ENTER + HIDE_CURSOR);
+  if (wasRaw) process.stdin.setRawMode(true);
+
+  if (result.error) {
+    throw new Error(`Could not launch editor '${editor}': ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    return { edited: false, error: `Editor exited with status ${result.status}` };
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!Array.isArray(parsed)) throw new Error('must be a JSON array');
+  } catch (e) {
+    return { edited: false, error: `Saved file is not valid JSON: ${e.message}` };
+  }
+
+  refreshWorkingCopyIfActive(folderName);
+  return { edited: true };
 }
 
 // ── remote tracking ───────────────────────────────────────────────────────────

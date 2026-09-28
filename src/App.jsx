@@ -33,6 +33,7 @@ import {
   restoreBackup,
   backupFolder,
   copyToClipboard,
+  editTypeFile,
 } from './core.js';
 
 import {
@@ -78,6 +79,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
+    { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
@@ -461,6 +463,13 @@ export default function App() {
       }
       return;
     }
+    if (matches(bindings.editFile, input, key)) {
+      if (focus !== 'types' && focus !== 'items') { notify('Select a type or item to edit its file', true); return; }
+      if (!currentFolder || !currentType) { notify('No type selected', true); return; }
+      if (isPulling) { notify('Cannot edit while a pull/sync is in progress', true); return; }
+      handleEditTypeFile();
+      return;
+    }
     // Range select: first press marks the current row as the anchor (and
     // selects it, so there's visible feedback something happened); second
     // press — anywhere else in the list, in either direction — fills every
@@ -694,6 +703,26 @@ export default function App() {
       notify(`Exported de-identified copy (${typeCount} type${typeCount !== 1 ? 's' : ''}) → ${outDir}`);
     } catch (e) {
       notify(e.message, true);
+    }
+  };
+
+  const handleEditTypeFile = () => {
+    const folderName = currentFolder.name;
+    const typeName = currentType.name;
+    try {
+      const result = editTypeFile(folderName, typeName);
+      if (result.edited) {
+        notify(`Saved edits to '${typeName}.json' in '${folderLabel(folderName)}'`);
+      } else {
+        notify(
+          `Edit not applied: ${result.error} (press ${bindingLabel(bindings.viewHistory)} to restore the pre-edit backup if needed)`,
+          true,
+        );
+      }
+    } catch (e) {
+      notify(e.message, true);
+    } finally {
+      refresh();
     }
   };
 

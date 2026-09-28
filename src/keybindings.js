@@ -37,6 +37,7 @@ export const DEFAULT_BINDINGS = {
   viewPull:     { key: 'p',      ctrl: false, label: 'View pull/sync output' },
   cancelPull:   { key: 'x',      ctrl: false, label: 'Cancel in-progress pull/sync' },
   pullMore:     { key: 'A',      ctrl: false, label: 'Pull more into folder with a new query' },
+  editFile:     { key: 'E',      ctrl: false, label: 'Edit type file in $EDITOR (context-aware)' },
 };
 
 /** Load bindings from disk, merged over defaults. Always returns a complete map. */
