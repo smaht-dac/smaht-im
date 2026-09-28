@@ -6,6 +6,7 @@ __pycache__/
 # Node
 node_modules/
 dist/
+test/.compiled/
 
 # OS / editor
 .DS_Store
