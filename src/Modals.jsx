@@ -127,7 +127,7 @@ export function RenameModal({ folder, onConfirm, onCancel }) {
 export function DeleteModal({ folder, onConfirm, onCancel }) {
   useInput((input, key) => {
     if (key.escape || input === 'n') { onCancel(); return; }
-    if (input === 'y') onConfirm();
+    if (key.return || input === 'y') onConfirm();
   });
 
   return (

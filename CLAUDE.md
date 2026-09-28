@@ -157,7 +157,12 @@ Modals replace the entire layout. The pattern in `Modals.jsx`:
 export function MyModal({ ...props, onConfirm, onCancel }) {
   useInput((input, key) => {
     if (key.escape) { onCancel(); return; }
-    // specific keys to confirm
+    // specific keys to confirm. For a plain yes/no-style confirmation,
+    // `key.return` must be accepted alongside whichever letter (e.g. `y`)
+    // triggers onConfirm, not as a replacement for it. DeleteModal originally
+    // only took `y`, inconsistent with SyncFolderModal/SyncItemModal already
+    // taking `key.return || input === 'y'`, fixed to match, since a user
+    // has no way to guess which modals are the exception.
   });
   return (
     <Dialog title="…" titleColor="cyan" width={64}>
