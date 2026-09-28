@@ -67,7 +67,13 @@ function remoteIndicator(rs) {
   return { text: '↓', color: 'yellow' };
 }
 
-const FOLDERS_COLLAPSED_WIDTH = 18;
+// border(2, one column each side) + a single-character content column, no
+// padding, as thin as a bordered panel can get. There's no way to actually
+// rotate glyphs 90° in a terminal (each cell holds one upright character,
+// no font-level rotation), so "sideways" is approximated by stacking the
+// name one letter per row instead, reads top-to-bottom, not literally
+// rotated, but genuinely this narrow.
+const FOLDERS_COLLAPSED_WIDTH = 3;
 
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false }) {
 
@@ -81,9 +87,13 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   // list, no navigation. Expanding (Enter, or the dedicated toggle key) is
   // required before doing anything else in this panel. See "Collapsible
   // Folders panel" in CLAUDE.md for why this exists and how it's triggered.
+  // No inline hint text at this width, there's no room for it, and the
+  // footer already shows "[o] Show Folders" while collapsed.
   if (collapsed) {
     const active = folders.find(f => f.isActive) ?? null;
-    const label  = active ? folderLabel(active.name) : '(none loaded)';
+    const label  = active ? folderLabel(active.name) : '·'; // middle dot: nothing loaded yet
+    const innerRows = Math.max(1, height - 2); // minus top/bottom border
+    const letters = trunc(label, innerRows).split('');
     return (
       <Box
         width={FOLDERS_COLLAPSED_WIDTH}
@@ -91,12 +101,12 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         flexDirection="column"
         borderStyle="single"
         borderColor={isFocused ? 'green' : 'gray'}
-        paddingX={1}
       >
-        <Text bold color={isFocused ? 'green' : 'white'} wrap="truncate-end">
-          {trunc(label, FOLDERS_COLLAPSED_WIDTH - 4)}
-        </Text>
-        {isFocused && <Text color="gray" wrap="truncate-end">Enter=open</Text>}
+        {letters.map((ch, i) => (
+          <Box key={i}>
+            <Text bold={isFocused} color={isFocused ? 'green' : 'white'}>{ch}</Text>
+          </Box>
+        ))}
       </Box>
     );
   }
