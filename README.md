@@ -22,6 +22,35 @@ committed to the portal repo.
 
 ---
 
+## Getting started on a fresh machine
+
+What's needed, roughly in order:
+
+1. **Node.js 24**, via [nvm](https://github.com/nvm-sh/nvm) (matches `.nvmrc`):
+   ```bash
+   nvm install 24
+   ```
+2. **This repository**, checked out to `~/smaht-im`, with its Node dependencies built:
+   ```bash
+   cd ~/smaht-im && npm install && npm run build
+   ```
+3. **A local `smaht-portal` checkout**, `~/dbmi/smaht-portal` by default (override with `SMAHT_REPO_ROOT`, see [Environment variable overrides](#environment-variable-overrides)). This is where local inserts actually live (`src/encoded/tests/data/`), `im`/`imc` read and write there, they don't check it out for you.
+4. **A `smaht311` Python environment with `snovault` installed.** This is the heaviest step, and it's smaht-portal's own setup, not this repo's, follow smaht-portal's own dev-environment instructions to get a working `smaht311` pyenv virtualenv with `snovault`/`dcicutils` installed. That's what actually provides the `update-inserts-from-server` command both tools shell out to for pulling data from the portal (see [Why `PYENV_VERSION` is required](#why-pyenv_version-is-required)). Everything else, browsing, loading, diffing, moving items, checking sync status, works without it.
+5. **This project's own two Python dependencies**, into that same `smaht311` env:
+   ```bash
+   PYENV_VERSION=smaht311 pip install -r requirements.txt
+   ```
+6. **Portal credentials** at `~/.smaht-keys.json`, see [the `im` CLI's Prerequisites section](#prerequisites) for the expected shape. Getting real credentials issued is a separate, internal process, not covered here.
+7. **Shell aliases** for both tools, add to `~/.bashrc` (or `~/.zshrc`):
+   ```bash
+   alias imc='source ~/.nvm/nvm.sh && nvm use 24 --silent && node ~/smaht-im/dist/imc.js'
+   alias im='PYENV_VERSION=smaht311 python ~/smaht-im/im.py'
+   ```
+
+Once all of that's in place: `imc` for the TUI, or `im --help` for the CLI. Each tool's own section below covers its setup and prerequisites in more detail.
+
+---
+
 ## How it works
 
 Both tools operate on the inserts directory inside your local smaht-portal checkout —
@@ -237,6 +266,8 @@ Default keybindings:
 | Quit | `q` |
 
 ---
+
+**What imc needs to run:** Node.js 24 (below) is enough for browsing, loading, diffing, and moving items between folders you already have locally. Pulling or syncing data from the portal (`f`, `A`, creating a folder with a query) additionally needs the same `smaht311` Python environment `im` does, see [the `im` CLI's Prerequisites section](#prerequisites) further down, since imc shells out to the same `update-inserts-from-server`. The clipboard-copy keybinding (`y`) is macOS-only.
 
 ### Setup
 
