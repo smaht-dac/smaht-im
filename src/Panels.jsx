@@ -106,8 +106,8 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   // than information, and the loaded folder's name is one Enter/toggle-key
   // press away regardless.
   if (collapsed) {
-    const content = nerdFontEnabled() ? NERD_FONT_FOLDER_ICON : (toggleKey || '?');
-    const color = isFocused ? 'green' : 'white';
+    const usingIcon = nerdFontEnabled();
+    const content = usingIcon ? NERD_FONT_FOLDER_ICON : (toggleKey || '?');
     return (
       <Box
         width={FOLDERS_COLLAPSED_WIDTH}
@@ -117,7 +117,18 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         borderColor={isFocused ? 'green' : 'gray'}
       >
         <Box>
-          <Text bold={isFocused} color={color}>{content}</Text>
+          {usingIcon ? (
+            <Text bold={isFocused} color={isFocused ? 'green' : 'white'}>{content}</Text>
+          ) : (
+            // Rendered as a keycap badge (inverted: solid background, dark
+            // text) rather than plain colored text on the panel's own
+            // background. A badge reads as "a pressable key" the way plain
+            // text over the same background wouldn't, and costs no extra
+            // width, unlike bracket notation ("[o]") would. Still tracks
+            // focus the same way the border does (green vs gray), just as a
+            // background instead of a foreground color.
+            <Text bold backgroundColor={isFocused ? 'green' : 'gray'} color="black">{content}</Text>
+          )}
         </Box>
       </Box>
     );
