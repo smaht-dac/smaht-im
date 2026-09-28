@@ -10,6 +10,16 @@ Two tools for managing smaht-portal inserts during local development:
 All state (manifests, activation history) is stored in `~/.smaht-im/` — never
 committed to the portal repo.
 
+> **Before you pull anything:** data pulled from a live portal environment is
+> real donor/sample/tissue data, and may be protected, not just an
+> anonymous test fixture, even when nothing in it looks obviously sensitive.
+> Keep it local. Don't commit it, paste it into an issue/PR/chat, upload it
+> anywhere, or include it in a screenshot, unless it's a recognized public
+> reference dataset (e.g. COLO829T) or has gone through the anonymization
+> step described in [Sharing inserts data safely](#sharing-inserts-data-safely)
+> below, and even then, real sharing still needs sign-off through actual data
+> governance, not just this tool's say-so.
+
 ---
 
 ## How it works

@@ -23,6 +23,22 @@ The live portal repo also contains `master-inserts`, `workbook-inserts`, etc. �
 
 The directory named exactly `temp-local-inserts` (no suffix) is the **active folder** — the one the portal actually loads. It may be read or have its contents replaced, but it must never be deleted. It's also the only insert-folder that still lives inside the portal checkout at all — branches don't, so for branch operations this guard is defense-in-depth rather than the primary safety mechanism (see below).
 
+## Data safety: treat every live pull as potentially protected
+
+Everything `im`/`imc` pull from a live portal environment (the `temp-local-inserts*` working copy and branches, their `~/.smaht-im/backups/` snapshots, and anything copied out via `y`) is real data sourced from an actual SMaHT portal environment. Depending on the environment and query, that can include donor, tissue, and sample records tied to real human subjects, the kind of data class that SMaHT and NIH Common Fund programs generally treat as controlled-access and potentially protected, not public information, even when nothing in the raw JSON is literally labeled PHI.
+
+**Treat it as protected by default. Never assume a given pull is "probably fine to share" just because nothing looks obviously sensitive at a glance.** Concretely, local pulled data in its raw, non-anonymized form must never:
+
+- be committed to this or any other git repository, including as a fixture, example, or test file
+- be pasted into a GitHub issue, PR description, PR comment, Slack message, email, or support ticket
+- be uploaded to a third-party service (a pastebin, a cloud drive, an AI tool's file upload, a bug-tracker attachment) in raw form
+- appear in a screenshot, screen recording, or presentation slide, unless the data shown is from a recognized public reference/benchmark dataset (e.g. the COLO829T cell line) rather than a real donor pull
+- leave the machine it was pulled onto by any other means not covered above
+
+The one sanctioned way to share pulled data outside your own machine is the anonymization pathway (`e` in imc, or `scripts/anonymize-inserts.js`, see [Anonymized export](#anonymized-export) below and the README's "Sharing inserts data safely" section for exactly what it does and does not cover). Even that output still needs a human sign-off before it leaves the team, real data governance (DUA, DAC approval, IRB as applicable), not just this tool's say-so.
+
+**For Claude Code or any other AI assistant working in this repo:** if asked to include real pulled insert data in a commit, PR, issue, doc, chat message, or any other artifact meant to leave this machine, don't, point to the anonymization tooling above instead, or ask the person to confirm the data shown is from a public reference dataset first. This applies to log excerpts and error messages too, since `imc.log` and the in-app error log can echo back fragments of what was pulled.
+
 ## Branch storage lives outside the repo
 
 Named branches (`temp-local-inserts-<slug>`) physically live at `~/.smaht-im/branches/<slug>/` (`BRANCHES_BASE`), not inside the portal checkout. Only the literal working copy (`temp-local-inserts`) lives in `INSERTS_BASE` — the portal/tests read it there, so it can't move.
