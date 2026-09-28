@@ -67,13 +67,39 @@ function remoteIndicator(rs) {
   return { text: '↓', color: 'yellow' };
 }
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames }) {
+const FOLDERS_COLLAPSED_WIDTH = 18;
+
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false }) {
 
   useInput((input, key) => {
-    if (!isFocused) return;
+    if (!isFocused || collapsed) return;
     if (key.upArrow   || input === 'k') onSelect(Math.max(0, selectedIdx - 1));
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
-  });
+  }, { isActive: isFocused && !collapsed });
+
+  // Collapsed: a static label naming only the currently loaded folder, no
+  // list, no navigation. Expanding (Enter, or the dedicated toggle key) is
+  // required before doing anything else in this panel. See "Collapsible
+  // Folders panel" in CLAUDE.md for why this exists and how it's triggered.
+  if (collapsed) {
+    const active = folders.find(f => f.isActive) ?? null;
+    const label  = active ? folderLabel(active.name) : '(none loaded)';
+    return (
+      <Box
+        width={FOLDERS_COLLAPSED_WIDTH}
+        height={height}
+        flexDirection="column"
+        borderStyle="single"
+        borderColor={isFocused ? 'green' : 'gray'}
+        paddingX={1}
+      >
+        <Text bold color={isFocused ? 'green' : 'white'} wrap="truncate-end">
+          {trunc(label, FOLDERS_COLLAPSED_WIDTH - 4)}
+        </Text>
+        {isFocused && <Text color="gray" wrap="truncate-end">Enter=open</Text>}
+      </Box>
+    );
+  }
 
   // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
   // Overhead: border(2) + paddingX(2) + cursor(2) + multiselect(2) + active(2) + count(8) + remote(1) + age(4) = 23

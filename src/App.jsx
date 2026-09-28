@@ -69,7 +69,7 @@ import {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-function Footer({ focus, bindings, pulling, viewDetail }) {
+function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed }) {
   const kb = bindings;
   const actions = [
     { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
@@ -80,6 +80,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' || focus === 'detail' },
+    { key: bindingLabel(kb.toggleFolders), desc: foldersCollapsed ? 'Show Folders' : 'Hide Folders', active: true },
     { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
@@ -144,6 +145,7 @@ export default function App() {
   const [modal,         setModal]       = useState(null);
   const [notification,  setNote]        = useState(null); // { msg, isError }
   const [focus,         setFocus]       = useState('folders');
+  const [foldersCollapsed, setFoldersCollapsed] = useState(false); // shrunk to a name-only strip once focus leaves Folders
   const [viewDetail,    setViewDetail]  = useState(false); // item JSON preview, Items panel only — closes on focus change
   const [detailCursor,    setDetailCursor]    = useState(0);        // cursor into ItemDetailPanel's flattened row list
   const [detailCollapsed, setDetailCollapsed] = useState(new Set()); // node paths folded in the item JSON tree
@@ -190,6 +192,15 @@ export default function App() {
   // selection all funnel through the same `focus` state).
   useEffect(() => {
     if (focus !== 'items' && focus !== 'detail') setViewDetail(false);
+  }, [focus]);
+
+  // Collapse the Folders panel to a name-only strip the moment focus leaves
+  // it, freeing width for Types/Items. It only re-expands on an explicit
+  // action (Enter while focused there, the toggle key, or creating a new
+  // folder), never just by tabbing back to it. See "Collapsible Folders
+  // panel" in CLAUDE.md.
+  useEffect(() => {
+    if (focus !== 'folders') setFoldersCollapsed(true);
   }, [focus]);
 
   // A range anchor marked in one panel means nothing in another — e.g.
@@ -305,6 +316,14 @@ export default function App() {
       setModal('new-branch');
       return;
     }
+    if (matches(bindings.toggleFolders, input, key)) {
+      setFoldersCollapsed(prev => {
+        const next = !prev;
+        if (!next) setFocus('folders'); // expanding also brings focus here to browse right away
+        return next;
+      });
+      return;
+    }
 
     // Detail only joins the cycle while it's actually open — otherwise l/Tab
     // from Items wraps straight back to Folders same as always.
@@ -315,6 +334,16 @@ export default function App() {
     }
     if ((key.shift && key.tab) || input === 'h') {
       setFocus(f => focusOrder[(focusOrder.indexOf(f) - 1 + focusOrder.length) % focusOrder.length]);
+      return;
+    }
+
+    // Expand the collapsed Folders panel, the other explicit action besides
+    // the toggle key (see toggleFolders above). Deliberately does NOT fire
+    // just from tabbing/h-ing focus back onto Folders; per the collapse
+    // effect above, that alone leaves it collapsed until this or the toggle
+    // key is pressed.
+    if (key.return && focus === 'folders' && foldersCollapsed) {
+      setFoldersCollapsed(false);
       return;
     }
 
@@ -576,6 +605,11 @@ export default function App() {
     try {
       const newName = createFolder(name, base);
       const total = queries?.length ?? 0;
+      // The new folder exists now regardless of what happens with any pull
+      // below, expand the Folders panel (if collapsed) so it's actually
+      // visible to navigate to, rather than leaving it hidden behind a
+      // "created" notification with no way to see the result.
+      setFoldersCollapsed(false);
 
       if (total > 0) {
         const prevLoaded = activeFolder?.name ?? null;
@@ -1083,6 +1117,7 @@ export default function App() {
           isFocused={focus === 'folders'}
           remoteStatus={remoteStatus}
           selectedNames={selectedFolderNames}
+          collapsed={foldersCollapsed}
         />
 
         {/* Right: Overview + (Types | Items) + Log */}
@@ -1143,7 +1178,7 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} bindings={bindings} pulling={isPulling} viewDetail={viewDetail} />
+      <Footer focus={focus} bindings={bindings} pulling={isPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} />
     </Box>
   );
 }

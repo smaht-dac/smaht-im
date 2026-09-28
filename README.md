@@ -174,6 +174,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 
 | Key | Panel | Action |
 |-----|-------|--------|
+| `o` | Global | **Toggle** the Folders panel between full width and a name-only strip. Auto-collapses the instant focus leaves Folders; only re-expands via this key or `Enter` while focused there (or automatically right after creating a new folder) |
 | `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
@@ -259,6 +260,7 @@ Default keybindings:
 | Move items | `m` |
 | Copy to clipboard | `y` |
 | Edit type file in `$EDITOR` | `E` |
+| Toggle Folders panel | `o` |
 | Range select | `v` |
 | Toggle / load | `Space` |
 | Select all | `ctrl+a` |

@@ -373,6 +373,16 @@ A `useEffect` clears `rangeAnchor` on any `focus` change — marking row 3 in Fo
 
 `Esc` clears `selectedFolderNames` and `rangeAnchor` unconditionally alongside its existing selection-clearing behavior — including on the early-return branch that closes the item detail view instead of clearing `selectedUuids`, since folder selection has no relationship to that branch's "don't blow away an in-progress item multi-select" reasoning.
 
+## Collapsible Folders panel
+
+`foldersCollapsed` (`App.jsx` state) shrinks `FolderPanel` from its normal dynamic width down to a fixed `FOLDERS_COLLAPSED_WIDTH` (18) strip showing only the currently loaded folder's name, no list, no navigation, freeing that width for Types/Items. This came from direct user feedback (not a design guess), with three explicit rules from that conversation worth preserving exactly:
+
+- **Collapses automatically the moment focus leaves Folders**, and only then, a `useEffect` keyed on `focus` (`if (focus !== 'folders') setFoldersCollapsed(true)`), placed right alongside the existing `viewDetail`/`rangeAnchor` focus-change effects. It deliberately does **not** collapse on loading a folder (`a`/`Space`) while still focused there, loading and leaving are different actions, and only leaving should trigger it.
+- **Never auto-expands just by tabbing back to Folders.** The same effect's condition (`focus !== 'folders'`) is false when focus arrives back on Folders, so it's a no-op there on purpose, re-expanding needs one of the two explicit actions below. Getting this wrong (e.g. expanding whenever `focus === 'folders'`) would fight the collapse effect and the panel would just flash open every time focus cycles through.
+- **Two ways to expand, both explicit:** `Enter` while focus is already on Folders and it's collapsed (checked before the existing `key.return && focus === 'items'` block, since they guard different `focus` values and can't collide), and the dedicated `toggleFolders` binding (`o`) from anywhere, which also does `setFocus('folders')` when it's the expanding press specifically (not the collapsing one), so it doubles as a "jump to and reveal Folders" shortcut from deep in Items/Types. Creating a folder (`handleCreateFolder`, right after `createFolder()` succeeds, before the pull branch) also force-expands it unconditionally, on the reasoning that a folder that just started existing needs to actually be visible to navigate to, regardless of whatever a subsequent pull does.
+
+`FolderPanel`'s own `useInput` (j/k navigation) is gated with `isActive: isFocused && !collapsed` in addition to the existing `isFocused` check, so collapsed-and-focused doesn't silently move a selection nobody can see.
+
 ## How smaht-portal actually loads inserts (background)
 
 Researched 2026-08-20 in `~/dbmi/smaht-portal`, prompted by the question "could inserts be served to the browser instead of via `make deploy1`/`deploy2`?" Recorded here so it doesn't need re-researching.

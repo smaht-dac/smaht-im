@@ -38,6 +38,7 @@ export const DEFAULT_BINDINGS = {
   cancelPull:   { key: 'x',      ctrl: false, label: 'Cancel in-progress pull/sync' },
   pullMore:     { key: 'A',      ctrl: false, label: 'Pull more into folder with a new query' },
   editFile:     { key: 'E',      ctrl: false, label: 'Edit type file in $EDITOR (context-aware)' },
+  toggleFolders: { key: 'o',     ctrl: false, label: 'Toggle Folders panel open/closed' },
 };
 
 /** Load bindings from disk, merged over defaults. Always returns a complete map. */

@@ -530,6 +530,8 @@ function buildHelpRows(bindings) {
     ['  Shift+Tab / h', 'Move focus in reverse'],
     ['', ''],
     ['Folders panel (left)', ''],
+    [b('toggleFolders'),                  'Show / hide the folder list (auto-hides once focus leaves this panel)'],
+    ['  Enter',                           'While hidden and focused here: show the folder list'],
     [b('newFolder'),                      'Create new inserts folder'],
     [b('newEmptyFolder'),                 'Create new inserts folder, defaulting to an empty base'],
     [b('rename'),                         'Rename selected folder'],
