@@ -59,6 +59,22 @@ esbuild flags that matter:
 - `--packages=external` — keep `node_modules` as runtime imports (ink is pure ESM, can't bundle)
 - `--format=esm` — required because ink is pure ESM; CJS output would fail at runtime
 
+## Tests
+
+```bash
+npm test          # JS: node's built-in test runner against src/core.js
+npm run test:py   # Python: im.py's pure helpers (needs the smaht311 env's click/requests)
+npm run test:all  # both
+```
+
+Covers `src/core.js` (the pure data layer) and `im.py`'s pure helpers (name conversion, manifest read/write, insert-dir reading). Does not cover `App.jsx`/`Panels.jsx`/`Modals.jsx` (no React/Ink rendering tests exist yet) or im.py's Click commands (`status`/`pull`/`repull`/`coverage`/`workspaces`).
+
+**Isolation, and why it matters here specifically:** both `core.js` and `im.py` resolve their working paths (`INSERTS_BASE`, `BRANCHES_BASE`, the manifest dir, the keys file) from `SMAHT_REPO_ROOT`/`HOME` once, at import time, not per call. Every test file points those at a fresh temp directory *before* importing the module under test (`test/helpers/env.js` on the JS side; the top of `test/test_im.py` on the Python side), so the suite never reads or writes a real smaht-portal checkout or a real `~/.smaht-im`, only ever throwaway temp dirs it creates and owns. This isn't just tidiness: the whole point is that real pulled data may be protected (see "Data safety" above), so tests must never be able to touch it, even by accident.
+
+**If you add a new JS test file:** set env vars via `useTempEnv()` *before* importing `core.js`. A static `import` at the top of a file is hoisted and runs before any other code in that file, env vars set below it would be too late, so use a dynamic `const core = await import('../src/core.js')` placed after `useTempEnv()`, never a static import. `node --test` runs each test file as its own process (verified empirically, not just assumed), which is what makes per-file env vars safe here; don't assume that'd still hold if two test files' code ever ran in the same process.
+
+**Sync-mechanics tests** (`test/core.sync-mechanics.test.js`) exercise `syncFolderAsync`/`pullBatchIntoFolderAsync` against a fake `update-inserts-from-server` (`test/fixtures/bin/`, put at the front of `PATH` by `useTempEnv()`) instead of the real CLI tool, so they never make a network call, never need real portal credentials, and never risk touching real data.
+
 ## Source file map
 
 ```

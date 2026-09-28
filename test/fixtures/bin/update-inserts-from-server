@@ -1,0 +1,50 @@
+#!/usr/bin/env node
+/**
+ * Fake stand-in for the real `update-inserts-from-server` CLI, used only by
+ * the test suite (see test/helpers/env.js, which puts this file's directory
+ * at the front of PATH for the duration of a test process). Lets
+ * syncFolderAsync/pullBatchIntoFolderAsync in src/core.js be exercised
+ * end-to-end without a real network call, real portal credentials, or the
+ * real Python tool — so tests never touch anything that could be protected
+ * portal data.
+ *
+ * Behavior is controlled entirely by env vars so tests can drive it:
+ *   FAKE_UPDATE_INSERTS_EXIT_CODE  - non-zero to simulate a failed pull
+ *   FAKE_UPDATE_INSERTS_TYPE       - insert type file to write (default 'donor')
+ *   FAKE_UPDATE_INSERTS_UUID       - uuid of the item to merge in (default: random)
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+const args = process.argv.slice(2);
+const getArg = (flag) => {
+  const i = args.indexOf(flag);
+  return i === -1 ? null : args[i + 1];
+};
+
+console.log(`[fake update-inserts-from-server] env=${getArg('--env')} search=${getArg('--search')}`);
+
+const exitCode = Number(process.env.FAKE_UPDATE_INSERTS_EXIT_CODE ?? '0');
+if (exitCode !== 0) {
+  console.error('[fake update-inserts-from-server] simulated failure');
+  process.exit(exitCode);
+}
+
+const dest = getArg('--dest');
+if (dest) {
+  const type = process.env.FAKE_UPDATE_INSERTS_TYPE || 'donor';
+  const uuid = process.env.FAKE_UPDATE_INSERTS_UUID || crypto.randomUUID();
+  fs.mkdirSync(dest, { recursive: true });
+  const file = path.join(dest, `${type}.json`);
+  let existing = [];
+  try { existing = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* new file */ }
+  if (!existing.some((i) => i.uuid === uuid)) {
+    existing.push({ uuid, submitted_id: `FAKE-${uuid.slice(0, 8)}`, status: 'shared' });
+  }
+  fs.writeFileSync(file, JSON.stringify(existing, null, 2));
+  console.log(`[fake update-inserts-from-server] wrote ${file}`);
+}
+
+console.log('[fake update-inserts-from-server] done');
+process.exit(0);
