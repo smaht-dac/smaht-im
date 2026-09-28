@@ -460,7 +460,7 @@ function truncSegments(segments, maxLen) {
  * folded) both live in App.jsx state; this component only flattens/renders
  * and reports intent via onSelect/onCollapsedChange.
  */
-export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFocused, selectedIdx, onSelect, collapsed, onCollapsedChange, inModal = false }) {
+export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFocused, selectedIdx, onSelect, collapsed, onCollapsedChange, inModal = false, editKey = null }) {
   const innerWidth = width - 4; // border(2) + paddingX(2)
   const innerHeight = Math.max(1, height - 3); // border(2) + title row
 
@@ -512,7 +512,7 @@ export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFoc
       {isFocused && (
         <Box paddingX={1}>
           <Text color="gray" wrap="truncate-end">
-            Enter/Space=toggle  c=collapse  {inModal ? 'z/Esc=close' : 'z=full  Esc=close'}
+            Enter/Space=toggle  c=collapse  {editKey ? `${editKey}=edit file  ` : ''}{inModal ? 'z/Esc=close' : 'z=full  Esc=close'}
           </Text>
         </Box>
       )}

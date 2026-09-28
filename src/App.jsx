@@ -79,7 +79,7 @@ function Footer({ focus, bindings, pulling, viewDetail }) {
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
-    { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' },
+    { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' || focus === 'detail' },
     { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
@@ -464,7 +464,10 @@ export default function App() {
       return;
     }
     if (matches(bindings.editFile, input, key)) {
-      if (focus !== 'types' && focus !== 'items') { notify('Select a type or item to edit its file', true); return; }
+      if (focus !== 'types' && focus !== 'items' && focus !== 'detail') {
+        notify('Select a type or item to edit its file', true);
+        return;
+      }
       if (!currentFolder || !currentType) { notify('No type selected', true); return; }
       if (isPulling) { notify('Cannot edit while a pull/sync is in progress', true); return; }
       handleEditTypeFile();
@@ -722,6 +725,14 @@ export default function App() {
     } catch (e) {
       notify(e.message, true);
     } finally {
+      // A hand-edit can reorder or remove items, so whatever detailCursor/
+      // itemIdx pointed at before may no longer mean the same thing, so
+      // close the JSON detail view (side panel or full-screen modal) rather
+      // than leave it showing a now-stale position. No-op if it wasn't open.
+      if (viewDetail || focus === 'detail') {
+        setViewDetail(false);
+        setFocus('items');
+      }
       refresh();
     }
   };
@@ -1030,6 +1041,8 @@ export default function App() {
             collapsed={detailCollapsed}
             onCollapsedChange={setDetailCollapsed}
             onClose={() => setModal(null)}
+            onEdit={() => { setModal(null); handleEditTypeFile(); }}
+            editKey={bindingLabel(bindings.editFile)}
           />
         )}
       </Box>
@@ -1116,6 +1129,7 @@ export default function App() {
                 onSelect={setDetailCursor}
                 collapsed={detailCollapsed}
                 onCollapsedChange={setDetailCollapsed}
+                editKey={bindingLabel(bindings.editFile)}
               />
             )}
           </Box>

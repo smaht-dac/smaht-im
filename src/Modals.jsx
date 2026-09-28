@@ -560,6 +560,7 @@ function buildHelpRows(bindings) {
     ['  Enter / Space',                    'Expand / collapse the highlighted node'],
     ['  c',                                'Collapse every node'],
     ['  z',                                'Open the same view full-screen (z or Esc to close it)'],
+    [b('editFile'),                       'Open this type\'s JSON file in $EDITOR (side panel or full-screen)'],
     ['  Esc',                              'Close and return to Items'],
     ['  Esc',                             'Clear all selections'],
     ['', ''],
@@ -795,9 +796,10 @@ export function PullLogModal({ pull, lines, cancelKey, viewKey, onCancel, onClos
 // always focused. Opening/closing this never touches viewDetail/focus — it's
 // a read-only overlay on top of whatever the side panel already had going.
 
-export function ItemDetailModal({ item, width, height, selectedIdx, onSelect, collapsed, onCollapsedChange, onClose }) {
+export function ItemDetailModal({ item, width, height, selectedIdx, onSelect, collapsed, onCollapsedChange, onClose, onEdit, editKey }) {
   useInput((input, key) => {
-    if (key.escape || input === 'z') onClose();
+    if (key.escape || input === 'z') { onClose(); return; }
+    if (onEdit && input === editKey) onEdit();
   });
 
   return (
@@ -811,6 +813,7 @@ export function ItemDetailModal({ item, width, height, selectedIdx, onSelect, co
       onSelect={onSelect}
       collapsed={collapsed}
       onCollapsedChange={onCollapsedChange}
+      editKey={onEdit ? editKey : null}
     />
   );
 }
