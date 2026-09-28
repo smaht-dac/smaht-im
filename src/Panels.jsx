@@ -94,11 +94,13 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   // like "Space" or "Delete" if rebound to one of those), it always shows
   // in full on one line, no truncation, no wrapping, ever.
   //
-  // Color deliberately does NOT track isFocused here (border included),
-  // matching OverviewPanel's always-gray border + dimColor text rather than
-  // this panel's own usual green-on-focus convention, on direct user
-  // feedback that the brighter, focus-reactive version drew too much
-  // attention for what's meant to be a quiet, out-of-the-way strip.
+  // Unfocused color matches OverviewPanel's always-gray border + dimColor
+  // text (quieter than this panel's own usual white-on-unfocused), on
+  // direct user feedback that the brighter version drew too much attention
+  // for what's meant to be a quiet, out-of-the-way strip. Focus still
+  // highlights green, though, same as every other panel in this app, so
+  // Tab-cycling here doesn't lose the one visual cue that tells you where
+  // focus actually is.
   if (collapsed) {
     const bracketedKey = `[${toggleKey || '?'}]`;
     const collapsedWidth = 2 /* border, one column each side */
@@ -112,11 +114,11 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         justifyContent="center"
         alignItems="center"
         borderStyle="single"
-        borderColor="gray"
+        borderColor={isFocused ? 'green' : 'gray'}
         paddingX={FOLDERS_COLLAPSED_PAD_X}
       >
         <Box>
-          <Text dimColor>{bracketedKey}</Text>
+          <Text bold={isFocused} color={isFocused ? 'green' : undefined} dimColor={!isFocused}>{bracketedKey}</Text>
         </Box>
       </Box>
     );
