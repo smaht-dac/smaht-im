@@ -283,6 +283,12 @@ the existing architecture.
 
 ### Feature-aware insert recommendation (schema-driven)
 
+*The `scripts/recommend-inserts.js` prototype referenced throughout this
+section has been removed from the repo (unwired, undocumented outside this
+file, not appropriate to ship while making this tool shareable with the
+team). The findings below are still accurate and still the starting point
+if this gets built for real, see git history for the prototype's code.*
+
 Prompted by: "if I'm updating publication items I want a representative set
 of publications and their static sections; if I'm fixing a donor browse
 page bug I want donors and protected donors — can this be discerned
