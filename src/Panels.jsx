@@ -67,32 +67,11 @@ function remoteIndicator(rs) {
   return { text: '↓', color: 'yellow' };
 }
 
-// border(2, one column each side) + a 3-column content area.
-const FOLDERS_COLLAPSED_WIDTH = 5;
+// Blank columns on each side of the bracketed key inside the collapsed
+// strip, purely visual breathing room, not overhead needed to fit anything.
+const FOLDERS_COLLAPSED_PAD_X = 1;
 
-// A constant, unconditional green, not the usual isFocused-gated green/gray
-// this app uses for most focus indicators, because that's exactly what
-// went wrong with the first version of this indicator (a keycap-style badge
-// showing the toggle key itself): gray-on-unfocused was reported as
-// basically invisible. Focus is still fully conveyed by the border color
-// (green/gray) right next to it; this dot just needs to always be visible,
-// not to *additionally* encode focus state redundantly.
-const FOLDERS_COLLAPSED_DOT_COLOR = 'green';
-
-// Font Awesome's "folder" glyph, as patched into Private Use Area code point
-// U+F07B by Nerd Fonts (https://www.nerdfonts.com/). Deliberately opt-in via
-// IMC_NERD_FONT (see below) rather than on by default or auto-detected:
-// there is no way for a terminal *application* to ask the terminal
-// *emulator* what font it's actually rendering with, that information is
-// never exposed to the running process by any terminal, so this can only
-// ever be a per-person choice, never a runtime check.
-const NERD_FONT_FOLDER_ICON = '';
-
-function nerdFontEnabled() {
-  return ['1', 'true'].includes((process.env.IMC_NERD_FONT || '').toLowerCase());
-}
-
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false }) {
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false, toggleKey }) {
 
   useInput((input, key) => {
     if (!isFocused || collapsed) return;
@@ -100,36 +79,38 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   }, { isActive: isFocused && !collapsed });
 
-  // Collapsed: a single-character indicator, no list, no navigation.
-  // Expanding (Enter, or the dedicated toggle key) is required before doing
-  // anything else in this panel. See "Collapsible Folders panel" in
-  // CLAUDE.md for why this exists and how it's triggered.
+  // Collapsed: the toggleFolders key itself, bracketed, no list, no
+  // navigation. Expanding (Enter, or the dedicated toggle key) is required
+  // before doing anything else in this panel. See "Collapsible Folders
+  // panel" in CLAUDE.md for why this exists, how it's triggered, and the
+  // two earlier display attempts (spelling the folder name out vertically,
+  // then a folder glyph/icon) dropped along the way. Nothing here spells
+  // out which folder is loaded; the loaded folder's name is one
+  // Enter/toggle-key press away regardless.
   //
-  // Content is IMC_NERD_FONT-gated (see nerdFontEnabled above): the Nerd
-  // Font folder glyph if set, otherwise a plain green dot. An earlier
-  // version showed the toggleFolders key itself as a keycap badge here,
-  // dropped for two reasons: it was reported as unreadable unless focused
-  // (see FOLDERS_COLLAPSED_DOT_COLOR above), and being a rebindable label
-  // (bindingLabel() can hand back something several characters long) meant
-  // it needed truncation/wrap handling this fixed single-character dot just
-  // doesn't need at all. Nothing here spells out which folder is loaded
-  // either (an even earlier version stacked the name one letter per row);
-  // at this width that read as noise rather than information, and the
-  // loaded folder's name is one Enter/toggle-key press away regardless.
+  // Width is computed from the CURRENT binding's actual label length (it's
+  // rebindable, see keybindings.js) plus fixed padding, not a hardcoded
+  // constant, so whatever the key is ("o", "^F", even something longer
+  // like "Space" or "Delete" if rebound to one of those), it always shows
+  // in full on one line, no truncation, no wrapping, ever.
   if (collapsed) {
-    const usingIcon = nerdFontEnabled();
-    const content = usingIcon ? NERD_FONT_FOLDER_ICON : '●';
-    const color = usingIcon ? (isFocused ? 'green' : 'white') : FOLDERS_COLLAPSED_DOT_COLOR;
+    const bracketedKey = `[${toggleKey || '?'}]`;
+    const collapsedWidth = 2 /* border, one column each side */
+      + FOLDERS_COLLAPSED_PAD_X * 2
+      + bracketedKey.length;
     return (
       <Box
-        width={FOLDERS_COLLAPSED_WIDTH}
+        width={collapsedWidth}
         height={height}
         flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
         borderStyle="single"
         borderColor={isFocused ? 'green' : 'gray'}
+        paddingX={FOLDERS_COLLAPSED_PAD_X}
       >
         <Box>
-          <Text bold color={color}>{content}</Text>
+          <Text bold color={isFocused ? 'green' : 'white'}>{bracketedKey}</Text>
         </Box>
       </Box>
     );

@@ -1118,6 +1118,7 @@ export default function App() {
           remoteStatus={remoteStatus}
           selectedNames={selectedFolderNames}
           collapsed={foldersCollapsed}
+          toggleKey={bindingLabel(bindings.toggleFolders)}
         />
 
         {/* Right: Overview + (Types | Items) + Log */}

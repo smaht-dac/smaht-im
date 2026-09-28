@@ -174,7 +174,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 
 | Key | Panel | Action |
 |-----|-------|--------|
-| `o` | Global | **Toggle** the Folders panel between full width and a name-only strip. Auto-collapses the instant focus leaves Folders; only re-expands via this key or `Enter` while focused there (or automatically right after creating a new folder) |
+| `o` | Global | **Toggle** the Folders panel between full width and a narrow strip showing just this key, bracketed (e.g. `[o]`). Auto-collapses the instant focus leaves Folders; only re-expands via this key or `Enter` while focused there (or automatically right after creating a new folder) |
 | `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
@@ -522,13 +522,11 @@ It is never read by the portal or committed to the repo.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SMAHT_REPO_ROOT` | `~/dbmi/smaht-portal` | Root of the smaht-portal checkout |
-| `IMC_NERD_FONT` | unset (off) | `imc` only. Set to `1` to show a folder glyph in the collapsed Folders panel instead of the toggle key, only if your terminal's font is actually a [Nerd Font](https://www.nerdfonts.com/), there's no way for `imc` to detect this itself, so an unset/wrong value just shows a broken glyph in that one spot |
 
 Example:
 
 ```bash
 SMAHT_REPO_ROOT=~/other/smaht-portal im status
-IMC_NERD_FONT=1 imc
 ```
 
 ---
