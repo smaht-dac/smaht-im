@@ -522,11 +522,13 @@ It is never read by the portal or committed to the repo.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SMAHT_REPO_ROOT` | `~/dbmi/smaht-portal` | Root of the smaht-portal checkout |
+| `IMC_NERD_FONT` | unset (off) | `imc` only. Set to `1` to show a folder glyph in the collapsed Folders panel instead of the toggle key, only if your terminal's font is actually a [Nerd Font](https://www.nerdfonts.com/), there's no way for `imc` to detect this itself, so an unset/wrong value just shows a broken glyph in that one spot |
 
 Example:
 
 ```bash
 SMAHT_REPO_ROOT=~/other/smaht-portal im status
+IMC_NERD_FONT=1 imc
 ```
 
 ---

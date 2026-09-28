@@ -68,14 +68,23 @@ function remoteIndicator(rs) {
 }
 
 // border(2, one column each side) + a single-character content column, no
-// padding, as thin as a bordered panel can get. There's no way to actually
-// rotate glyphs 90° in a terminal (each cell holds one upright character,
-// no font-level rotation), so "sideways" is approximated by stacking the
-// name one letter per row instead, reads top-to-bottom, not literally
-// rotated, but genuinely this narrow.
+// padding, as thin as a bordered panel can get.
 const FOLDERS_COLLAPSED_WIDTH = 3;
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false }) {
+// Font Awesome's "folder" glyph, as patched into Private Use Area code point
+// U+F07B by Nerd Fonts (https://www.nerdfonts.com/). Deliberately opt-in via
+// IMC_NERD_FONT (see below) rather than on by default or auto-detected:
+// there is no way for a terminal *application* to ask the terminal
+// *emulator* what font it's actually rendering with, that information is
+// never exposed to the running process by any terminal, so this can only
+// ever be a per-person choice, never a runtime check.
+const NERD_FONT_FOLDER_ICON = '';
+
+function nerdFontEnabled() {
+  return ['1', 'true'].includes((process.env.IMC_NERD_FONT || '').toLowerCase());
+}
+
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false, toggleKey }) {
 
   useInput((input, key) => {
     if (!isFocused || collapsed) return;
@@ -83,17 +92,22 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
     if (key.downArrow || input === 'j') onSelect(Math.min(folders.length - 1, selectedIdx + 1));
   }, { isActive: isFocused && !collapsed });
 
-  // Collapsed: a static label naming only the currently loaded folder, no
-  // list, no navigation. Expanding (Enter, or the dedicated toggle key) is
-  // required before doing anything else in this panel. See "Collapsible
-  // Folders panel" in CLAUDE.md for why this exists and how it's triggered.
-  // No inline hint text at this width, there's no room for it, and the
-  // footer already shows "[o] Show Folders" while collapsed.
+  // Collapsed: a single-character indicator, no list, no navigation.
+  // Expanding (Enter, or the dedicated toggle key) is required before doing
+  // anything else in this panel. See "Collapsible Folders panel" in
+  // CLAUDE.md for why this exists and how it's triggered.
+  //
+  // Content is IMC_NERD_FONT-gated (see nerdFontEnabled above): the Nerd
+  // Font folder glyph if set, otherwise the toggle key itself (e.g. "o"),
+  // genuinely useful as a fallback, not just inert filler, since it doubles
+  // as a reminder of exactly which key reopens the panel. Nothing here
+  // spells out which folder is loaded any more (an earlier version stacked
+  // the name one letter per row); at this width that read as noise rather
+  // than information, and the loaded folder's name is one Enter/toggle-key
+  // press away regardless.
   if (collapsed) {
-    const active = folders.find(f => f.isActive) ?? null;
-    const label  = active ? folderLabel(active.name) : '·'; // middle dot: nothing loaded yet
-    const innerRows = Math.max(1, height - 2); // minus top/bottom border
-    const letters = trunc(label, innerRows).split('');
+    const content = nerdFontEnabled() ? NERD_FONT_FOLDER_ICON : (toggleKey || '?');
+    const color = isFocused ? 'green' : 'white';
     return (
       <Box
         width={FOLDERS_COLLAPSED_WIDTH}
@@ -102,11 +116,9 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         borderStyle="single"
         borderColor={isFocused ? 'green' : 'gray'}
       >
-        {letters.map((ch, i) => (
-          <Box key={i}>
-            <Text bold={isFocused} color={isFocused ? 'green' : 'white'}>{ch}</Text>
-          </Box>
-        ))}
+        <Box>
+          <Text bold={isFocused} color={color}>{content}</Text>
+        </Box>
       </Box>
     );
   }
