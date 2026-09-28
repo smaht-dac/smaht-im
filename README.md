@@ -192,7 +192,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `m` | Items | **Move** selected items to another folder |
 | `y` | Items | **Copy** selected items (or the highlighted one) to the clipboard as JSON |
 | `v` | Items | **Range select** — mark the start here, move, press again to select every item in between |
-| `ctrl+a` | Items | Select all items in the current type |
+| `^A` (ctrl+a) | Items | Select all items in the current type |
 | `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right — closes when focus leaves Items |
 | `Tab` / `l` | Items | Move focus into the JSON tree panel (only while it's open) |
 | `↑↓` / `jk` | Item detail | Move within the JSON tree |
@@ -263,7 +263,7 @@ Default keybindings:
 | Toggle Folders panel | `o` |
 | Range select | `v` |
 | Toggle / load | `Space` |
-| Select all | `ctrl+a` |
+| Select all | `^A` (ctrl+a) |
 | Refresh | `R` |
 | Edit keybindings | `K` |
 | Help | `?` |

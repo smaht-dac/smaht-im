@@ -67,9 +67,17 @@ function remoteIndicator(rs) {
   return { text: '↓', color: 'yellow' };
 }
 
-// border(2, one column each side) + a single-character content column, no
-// padding, as thin as a bordered panel can get.
-const FOLDERS_COLLAPSED_WIDTH = 3;
+// border(2, one column each side) + a 3-column content area.
+const FOLDERS_COLLAPSED_WIDTH = 5;
+
+// A constant, unconditional green, not the usual isFocused-gated green/gray
+// this app uses for most focus indicators, because that's exactly what
+// went wrong with the first version of this indicator (a keycap-style badge
+// showing the toggle key itself): gray-on-unfocused was reported as
+// basically invisible. Focus is still fully conveyed by the border color
+// (green/gray) right next to it; this dot just needs to always be visible,
+// not to *additionally* encode focus state redundantly.
+const FOLDERS_COLLAPSED_DOT_COLOR = 'green';
 
 // Font Awesome's "folder" glyph, as patched into Private Use Area code point
 // U+F07B by Nerd Fonts (https://www.nerdfonts.com/). Deliberately opt-in via
@@ -84,7 +92,7 @@ function nerdFontEnabled() {
   return ['1', 'true'].includes((process.env.IMC_NERD_FONT || '').toLowerCase());
 }
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false, toggleKey }) {
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false }) {
 
   useInput((input, key) => {
     if (!isFocused || collapsed) return;
@@ -98,16 +106,20 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   // CLAUDE.md for why this exists and how it's triggered.
   //
   // Content is IMC_NERD_FONT-gated (see nerdFontEnabled above): the Nerd
-  // Font folder glyph if set, otherwise the toggle key itself (e.g. "o"),
-  // genuinely useful as a fallback, not just inert filler, since it doubles
-  // as a reminder of exactly which key reopens the panel. Nothing here
-  // spells out which folder is loaded any more (an earlier version stacked
-  // the name one letter per row); at this width that read as noise rather
-  // than information, and the loaded folder's name is one Enter/toggle-key
-  // press away regardless.
+  // Font folder glyph if set, otherwise a plain green dot. An earlier
+  // version showed the toggleFolders key itself as a keycap badge here,
+  // dropped for two reasons: it was reported as unreadable unless focused
+  // (see FOLDERS_COLLAPSED_DOT_COLOR above), and being a rebindable label
+  // (bindingLabel() can hand back something several characters long) meant
+  // it needed truncation/wrap handling this fixed single-character dot just
+  // doesn't need at all. Nothing here spells out which folder is loaded
+  // either (an even earlier version stacked the name one letter per row);
+  // at this width that read as noise rather than information, and the
+  // loaded folder's name is one Enter/toggle-key press away regardless.
   if (collapsed) {
     const usingIcon = nerdFontEnabled();
-    const content = usingIcon ? NERD_FONT_FOLDER_ICON : (toggleKey || '?');
+    const content = usingIcon ? NERD_FONT_FOLDER_ICON : '●';
+    const color = usingIcon ? (isFocused ? 'green' : 'white') : FOLDERS_COLLAPSED_DOT_COLOR;
     return (
       <Box
         width={FOLDERS_COLLAPSED_WIDTH}
@@ -117,18 +129,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         borderColor={isFocused ? 'green' : 'gray'}
       >
         <Box>
-          {usingIcon ? (
-            <Text bold={isFocused} color={isFocused ? 'green' : 'white'}>{content}</Text>
-          ) : (
-            // Rendered as a keycap badge (inverted: solid background, dark
-            // text) rather than plain colored text on the panel's own
-            // background. A badge reads as "a pressable key" the way plain
-            // text over the same background wouldn't, and costs no extra
-            // width, unlike bracket notation ("[o]") would. Still tracks
-            // focus the same way the border does (green vs gray), just as a
-            // background instead of a foreground color.
-            <Text bold backgroundColor={isFocused ? 'green' : 'gray'} color="black">{content}</Text>
-          )}
+          <Text bold color={color}>{content}</Text>
         </Box>
       </Box>
     );

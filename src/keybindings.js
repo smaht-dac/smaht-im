@@ -75,12 +75,18 @@ export function matches(binding, input, inkKey) {
   return input === binding.key;
 }
 
-/** Human-readable display label: "ctrl+a", "Delete", "Space", "q". */
+/**
+ * Human-readable display label: "^A", "Delete", "Space", "q". Ctrl bindings
+ * use "^" + the uppercased key rather than spelling out "ctrl+", the
+ * conventional terminal notation for a control character (the same "^C"/
+ * "^D" shells themselves already print), also much more compact, which
+ * matters anywhere this label has to fit in a narrow space (e.g. the
+ * collapsed Folders panel).
+ */
 export function bindingLabel(binding) {
   if (!binding) return '—';
-  const prefix = (binding.ctrl ?? false) ? 'ctrl+' : '';
-  const k = binding.key === ' ' ? 'Space' : binding.key;
-  return prefix + k;
+  if (binding.ctrl) return `^${(binding.key ?? '').toUpperCase()}`;
+  return binding.key === ' ' ? 'Space' : binding.key;
 }
 
 /**
