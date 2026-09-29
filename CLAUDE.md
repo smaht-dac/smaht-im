@@ -397,6 +397,19 @@ A `useEffect` clears `rangeAnchor` on any `focus` change — marking row 3 in Fo
 
 **`bindingLabel()` (`keybindings.js`) uses `^` + the uppercased key for ctrl bindings** (`^A`, not `ctrl+a`), the conventional terminal notation for a control character, the same `^C`/`^D` shells themselves already print, and it's a global change, not scoped to this one panel: every ctrl binding displays this way everywhere now (footer, help screen, keybindings editor). Motivated by this collapsed strip specifically (iteration 2 above needed a rebound `ctrl+f`-style label to fit in 3 columns without wrapping), but kept as the app-wide convention since there's no reason for the two notations to coexist, and it's meaningfully more compact everywhere a key hint appears.
 
+## Search
+
+`/`, global (works regardless of `focus`, guarded only on `activeFolder` existing): opens `SearchModal`, a single text field, and on submit jumps straight to the first matching item, uuid, type, and folder cursor all set together, `focus` moved to `'items'`, and `viewDetail` opened so the JSON is on screen immediately rather than just highlighted in a list.
+
+**Deliberately scoped down, on explicit direction, not an oversight:**
+
+- **uuid only, no other fields.** The motivating case is pasting a bare uuid straight out of a `make deploy1`/`deploy2` validation failure in smaht-portal, that's the only thing this needs to answer right now. A general field search (submitted_id, accession, title, ...) is a different, larger feature that wasn't asked for.
+- **The loaded (active) folder only, not every folder.** `make deploy1`/`deploy2` load `temp-local-inserts`, i.e. whatever folder is currently active, so that's where a validation-failing uuid actually lives. `findItemsByUuid(folder, query)` in `core.js` takes an already-loaded folder *object*, not a name, deliberately: `App.jsx` already has `activeFolder` sitting in state from `loadAllFolders()`, so this is a synchronous, in-memory scan, no new disk read, no new core.js write path to reason about.
+- **Substring match, not exact.** Forgiving of pasting a truncated uuid or just typing the first several characters; matches are case-insensitive. Real full uuids are unique enough in practice that this rarely surfaces more than one hit, but when it does, `SearchModal` shows a live match count as you type, and `handleSearch` jumps to the first match while naming how many more there were in the notification, rather than silently guessing or forcing a disambiguation step for what should be a fast path.
+- **No validation feature here.** The actual motivation (a validation failure needs tracking down) is left for later, explicitly, per the user: this only gets you *to* the item quickly, it doesn't check anything about it. Don't read "search" as a first step toward validation and start bolting schema checks onto it without that being asked for separately.
+
+Title icon is a literal `/`, not a decorative glyph, matching the keybinding itself rather than risking another Unicode-glyph-support gamble (see iteration 3 in "Collapsible Folders panel" above for exactly what that risk looks like when it doesn't pay off).
+
 ## How smaht-portal actually loads inserts (background)
 
 Researched 2026-08-20 in `~/dbmi/smaht-portal`, prompted by the question "could inserts be served to the browser instead of via `make deploy1`/`deploy2`?" Recorded here so it doesn't need re-researching.

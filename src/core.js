@@ -533,6 +533,36 @@ export function computeDiff(nameA, nameB) {
   return diffFolderObjects(loadFolder(nameA) ?? { types: [] }, loadFolder(nameB) ?? { types: [] });
 }
 
+/**
+ * Find items whose uuid contains `query` (case-insensitive substring, not
+ * exact match, forgiving of a partial paste), across every type in an
+ * already-loaded folder object (the shape loadFolder/loadAllFolders
+ * return). Pure and synchronous: takes the folder object the caller
+ * already has in memory rather than a name to re-read from disk, since the
+ * UI always already has the active folder loaded by the time anyone would
+ * search it.
+ *
+ * Motivating case: `make deploy1`/`deploy2` in smaht-portal fails
+ * validation and reports a bare problem uuid with no other context. This
+ * is for jumping straight to that item, not a general field search (see
+ * "Search" in CLAUDE.md for why the scope stops there for now).
+ *
+ * Returns matches in type-then-item order: [{ typeIdx, itemIdx, typeName, item }].
+ */
+export function findItemsByUuid(folder, query) {
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q || !folder) return [];
+  const matches = [];
+  folder.types.forEach((type, typeIdx) => {
+    type.items.forEach((item, itemIdx) => {
+      if (item.uuid && item.uuid.toLowerCase().includes(q)) {
+        matches.push({ typeIdx, itemIdx, typeName: type.name, item });
+      }
+    });
+  });
+  return matches;
+}
+
 /** Shallow field-level diff between two item data objects. Returns [{ field, before, after }]. */
 function diffItemFields(before, after) {
   const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);

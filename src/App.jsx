@@ -34,6 +34,7 @@ import {
   backupFolder,
   copyToClipboard,
   editTypeFile,
+  findItemsByUuid,
 } from './core.js';
 
 import {
@@ -57,6 +58,7 @@ import {
   SyncItemModal,
   SetQueryModal,
   PullMoreModal,
+  SearchModal,
   AnonymizeModal,
   ErrorLogModal,
   FullLogModal,
@@ -81,6 +83,7 @@ function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed }) {
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' || focus === 'detail' },
     { key: bindingLabel(kb.toggleFolders), desc: foldersCollapsed ? 'Show Folders' : 'Hide Folders', active: true },
+    { key: bindingLabel(kb.search),        desc: 'Find UUID', active: true },
     { key: bindingLabel(kb.rangeSelect),   desc: 'Range',  active: focus === 'folders' || focus === 'items' },
     { key: 'Enter',                       desc: 'View',    active: focus === 'items' },
     { key: bindingLabel(kb.diff),         desc: 'Diff',    active: focus === 'folders' },
@@ -322,6 +325,11 @@ export default function App() {
         if (!next) setFocus('folders'); // expanding also brings focus here to browse right away
         return next;
       });
+      return;
+    }
+    if (matches(bindings.search, input, key)) {
+      if (!activeFolder) { notify('No folder loaded to search', true); return; }
+      setModal('search');
       return;
     }
 
@@ -869,6 +877,28 @@ export default function App() {
     triggerRemoteCheck(currentFolder.name);
   };
 
+  const handleSearch = (query) => {
+    setModal(null);
+    // Named `found`, not `matches`: this file already imports a `matches`
+    // function from keybindings.js for key-event matching; shadowing it
+    // with search results here wouldn't currently break anything (nothing
+    // in this function calls the keybinding matcher), but it's confusing
+    // to read regardless, so it gets its own name.
+    const found = findItemsByUuid(activeFolder, query);
+    if (found.length === 0) { notify(`No item found matching '${query}'`, true); return; }
+
+    const activeIdx = folders.findIndex(f => f.isActive);
+    const { typeIdx, itemIdx, item } = found[0];
+    setFolderIdx(activeIdx >= 0 ? activeIdx : 0);
+    setTypeIdx(typeIdx);
+    setItemIdx(itemIdx);
+    setFocus('items');
+    setViewDetail(true);
+
+    const extra = found.length > 1 ? ` (+${found.length - 1} more match${found.length - 1 !== 1 ? 'es' : ''})` : '';
+    notify(`Jumped to '${item.displayId || item.uuid}'${extra}`);
+  };
+
   const handleSaveKeybindings = (newBindings) => {
     saveBindings(newBindings);
     setBindings(newBindings);
@@ -998,6 +1028,13 @@ export default function App() {
           <SetQueryModal
             folder={currentFolder}
             onConfirm={handleSetQuery}
+            onCancel={() => setModal(null)}
+          />
+        )}
+        {modal === 'search' && activeFolder && (
+          <SearchModal
+            folder={activeFolder}
+            onConfirm={handleSearch}
             onCancel={() => setModal(null)}
           />
         )}

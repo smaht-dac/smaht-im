@@ -7,6 +7,61 @@ import { useTempEnv, writeFolderFiles } from './helpers/env.js';
 useTempEnv();
 const core = await import('../src/core.js');
 
+describe('findItemsByUuid', () => {
+  test('matches a uuid across every type in the folder, not just one', () => {
+    const full = core.createFolder('search-a');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa' }],
+      tissue: [{ uuid: 'bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb' }],
+    });
+    const folder = core.loadFolder(full);
+
+    const donorMatches = core.findItemsByUuid(folder, 'aaaaaaaa');
+    assert.equal(donorMatches.length, 1);
+    assert.equal(donorMatches[0].typeName, 'donor');
+    assert.equal(donorMatches[0].item.uuid, 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa');
+
+    const tissueMatches = core.findItemsByUuid(folder, 'bbbbbbbb');
+    assert.equal(tissueMatches.length, 1);
+    assert.equal(tissueMatches[0].typeName, 'tissue');
+  });
+
+  test('is a case-insensitive substring match, not an exact match', () => {
+    const full = core.createFolder('search-b');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'ABCDEF12-0000-4000-8000-000000000000' }],
+    });
+    const folder = core.loadFolder(full);
+
+    assert.equal(core.findItemsByUuid(folder, 'abcdef12').length, 1);
+    assert.equal(core.findItemsByUuid(folder, 'CDEF').length, 1);
+    assert.equal(core.findItemsByUuid(folder, 'not-in-there').length, 0);
+  });
+
+  test('returns every match when more than one uuid contains the query', () => {
+    const full = core.createFolder('search-c');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [
+        { uuid: '11110000-0000-4000-8000-000000000000' },
+        { uuid: '11119999-0000-4000-8000-000000000000' },
+      ],
+    });
+    const folder = core.loadFolder(full);
+
+    assert.equal(core.findItemsByUuid(folder, '1111').length, 2);
+  });
+
+  test('returns [] for an empty query or a missing folder', () => {
+    const full = core.createFolder('search-d');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'x' }] });
+    const folder = core.loadFolder(full);
+
+    assert.deepEqual(core.findItemsByUuid(folder, ''), []);
+    assert.deepEqual(core.findItemsByUuid(folder, '   '), []);
+    assert.deepEqual(core.findItemsByUuid(null, 'x'), []);
+  });
+});
+
 describe('computeDiff', () => {
   test('reports added/removed/same at the type level between two folders', () => {
     const a = core.createFolder('diff-a');

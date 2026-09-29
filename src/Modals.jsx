@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
-import { folderLabel, LOG_FILE } from './core.js';
+import { folderLabel, LOG_FILE, findItemsByUuid } from './core.js';
 import { trunc, Spinner, ItemDetailPanel } from './Panels.jsx';
 import {
   DEFAULT_BINDINGS,
@@ -578,6 +578,7 @@ function buildHelpRows(bindings) {
     [b('cancelPull'),                     'Cancel an in-progress pull or sync'],
     ['', ''],
     ['Global', ''],
+    [b('search'),                         'Find an item by (partial) uuid in the loaded folder, jumps straight to it'],
     [b('expandLog'),                      'Open scrollable error log (this session)'],
     [b('viewFullLog'),                    'View the full persisted log file (~/.smaht-im/imc.log)'],
     [b('refresh'),                        'Refresh all folders from disk'],
@@ -1085,6 +1086,53 @@ export function SetQueryModal({ folder, onConfirm, onCancel }) {
       <ButtonBar buttons={[
         { key: 'Enter', label: 'Save', color: 'green' },
         { key: 'Tab',   label: 'Next field', color: 'cyan' },
+        { key: 'Esc',   label: 'Cancel', color: 'red' },
+      ]} />
+    </Dialog>
+  );
+}
+
+// ── SearchModal ────────────────────────────────────────────────────────────────
+// Jump straight to an item by (partial) uuid within the loaded folder, see
+// findItemsByUuid in core.js for why this is scoped to uuid-only, and to the
+// loaded folder specifically, rather than a general field/cross-folder search.
+
+export function SearchModal({ folder, onConfirm, onCancel }) {
+  const [query, setQuery] = useState('');
+  const matches = query.trim() ? findItemsByUuid(folder, query) : [];
+
+  useInput((input, key) => {
+    if (key.escape) { onCancel(); return; }
+  });
+
+  let matchLine = null;
+  if (query.trim()) {
+    if (matches.length === 0) {
+      matchLine = <Text color="red">No matching items</Text>;
+    } else if (matches.length === 1) {
+      matchLine = <Text color="green">1 match, Enter to jump to it</Text>;
+    } else {
+      matchLine = <Text color="yellow">{matches.length} matches, Enter jumps to the first</Text>;
+    }
+  }
+
+  return (
+    <Dialog title={`/  Find by UUID in '${folderLabel(folder.name)}'`} titleColor="cyan" width={68}>
+      <Text color="gray">Searches every type in the loaded folder for a uuid containing this text.</Text>
+      <Box height={1} />
+      <Box>
+        <Text color="gray">UUID  </Text>
+        <TextInput
+          value={query}
+          onChange={setQuery}
+          placeholder="paste a uuid, or part of one"
+          onSubmit={v => { if (v.trim()) onConfirm(v.trim()); }}
+        />
+      </Box>
+      <Box height={1} />
+      {matchLine}
+      <ButtonBar buttons={[
+        { key: 'Enter', label: 'Jump to match', color: 'cyan' },
         { key: 'Esc',   label: 'Cancel', color: 'red' },
       ]} />
     </Dialog>

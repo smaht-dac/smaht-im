@@ -39,6 +39,7 @@ export const DEFAULT_BINDINGS = {
   pullMore:     { key: 'A',      ctrl: false, label: 'Pull more into folder with a new query' },
   editFile:     { key: 'E',      ctrl: false, label: 'Edit type file in $EDITOR (context-aware)' },
   toggleFolders: { key: 'o',     ctrl: false, label: 'Toggle Folders panel open/closed' },
+  search:       { key: '/',      ctrl: false, label: 'Find item by UUID in the loaded folder' },
 };
 
 /** Load bindings from disk, merged over defaults. Always returns a complete map. */
