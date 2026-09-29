@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { useTempEnv, writeFolderFiles } from './helpers/env.js';
+import { useTempEnv, writeFolderFiles, resetInsertState } from './helpers/env.js';
 
 useTempEnv();
 const core = await import('../src/core.js');
@@ -59,6 +59,41 @@ describe('findItemsByUuid', () => {
     assert.deepEqual(core.findItemsByUuid(folder, ''), []);
     assert.deepEqual(core.findItemsByUuid(folder, '   '), []);
     assert.deepEqual(core.findItemsByUuid(null, 'x'), []);
+  });
+});
+
+describe('findItemsByUuidAcrossFolders', () => {
+  test('searches every folder, tagging which one each match came from', () => {
+    resetInsertState(core);
+    const a = core.createFolder('multi-a');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, a), { donor: [{ uuid: 'aaaa0000-0000-4000-8000-000000000000' }] });
+    const b = core.createFolder('multi-b');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, b), { donor: [{ uuid: 'bbbb0000-0000-4000-8000-000000000000' }] });
+
+    const folders = core.loadAllFolders();
+    const results = core.findItemsByUuidAcrossFolders(folders, 'aaaa0000');
+    assert.equal(results.length, 1);
+    assert.equal(results[0].folderName, a);
+    assert.equal(results[0].typeName, 'donor');
+  });
+
+  test('marks which match belongs to the currently loaded folder', () => {
+    resetInsertState(core);
+    const a = core.createFolder('multi-c');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, a), { donor: [{ uuid: 'cccc0000-0000-4000-8000-000000000000' }] });
+    core.switchFolder(a);
+    const b = core.createFolder('multi-d');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, b), { donor: [{ uuid: 'cccc9999-0000-4000-8000-000000000000' }] });
+
+    const folders = core.loadAllFolders();
+    const results = core.findItemsByUuidAcrossFolders(folders, 'cccc');
+    assert.equal(results.length, 2);
+    assert.equal(results.find(r => r.folderName === a).isActiveFolder, true);
+    assert.equal(results.find(r => r.folderName === b).isActiveFolder, false);
+  });
+
+  test('returns [] for a missing folders array', () => {
+    assert.deepEqual(core.findItemsByUuidAcrossFolders(null, 'x'), []);
   });
 });
 

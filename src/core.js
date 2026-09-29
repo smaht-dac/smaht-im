@@ -563,6 +563,25 @@ export function findItemsByUuid(folder, query) {
   return matches;
 }
 
+/**
+ * Same matching as findItemsByUuid, across every folder in `folders` (the
+ * array loadAllFolders() returns) rather than just one: a validation
+ * failure's uuid isn't necessarily in whichever folder happens to be
+ * loaded, and there's no reason to make someone switch folders first just
+ * to find out. Returns matches in folder-then-type-then-item order:
+ * [{ folderIdx, folderName, isActiveFolder, typeIdx, itemIdx, typeName, item }].
+ */
+export function findItemsByUuidAcrossFolders(folders, query) {
+  if (!folders) return [];
+  const matches = [];
+  folders.forEach((folder, folderIdx) => {
+    for (const m of findItemsByUuid(folder, query)) {
+      matches.push({ folderIdx, folderName: folder.name, isActiveFolder: !!folder.isActive, ...m });
+    }
+  });
+  return matches;
+}
+
 /** Shallow field-level diff between two item data objects. Returns [{ field, before, after }]. */
 function diffItemFields(before, after) {
   const keys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);

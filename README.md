@@ -175,7 +175,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | Key | Panel | Action |
 |-----|-------|--------|
 | `o` | Global | **Toggle** the Folders panel between full width and a narrow strip showing just this key, bracketed (e.g. `[o]`). Auto-collapses the instant focus leaves Folders; only re-expands via this key or `Enter` while focused there (or automatically right after creating a new folder) |
-| `/` | Global | **Find** an item by uuid (or part of one) anywhere in the loaded folder, jumps straight to it and opens its JSON detail view. Built for pasting a uuid straight out of a `make deploy1`/`deploy2` validation failure in smaht-portal |
+| `/` | Global | **Find** an item by uuid (or part of one) across every folder, shows a live result list (`↑↓` to move, `Enter` to jump to it, opening its JSON detail view), marking which results are in the currently loaded folder. Built for pasting a uuid straight out of a `make deploy1`/`deploy2` validation failure in smaht-portal |
 | `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |

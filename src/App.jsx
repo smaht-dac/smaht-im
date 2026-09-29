@@ -34,7 +34,6 @@ import {
   backupFolder,
   copyToClipboard,
   editTypeFile,
-  findItemsByUuid,
 } from './core.js';
 
 import {
@@ -328,7 +327,7 @@ export default function App() {
       return;
     }
     if (matches(bindings.search, input, key)) {
-      if (!activeFolder) { notify('No folder loaded to search', true); return; }
+      if (folders.length === 0) { notify('No folders to search', true); return; }
       setModal('search');
       return;
     }
@@ -877,26 +876,18 @@ export default function App() {
     triggerRemoteCheck(currentFolder.name);
   };
 
-  const handleSearch = (query) => {
+  // SearchModal already did the searching and let the user pick which
+  // result they meant (its own list, navigated with ↑↓); this just jumps
+  // to whichever one they confirmed, no re-searching here.
+  const handleSearch = (picked) => {
     setModal(null);
-    // Named `found`, not `matches`: this file already imports a `matches`
-    // function from keybindings.js for key-event matching; shadowing it
-    // with search results here wouldn't currently break anything (nothing
-    // in this function calls the keybinding matcher), but it's confusing
-    // to read regardless, so it gets its own name.
-    const found = findItemsByUuid(activeFolder, query);
-    if (found.length === 0) { notify(`No item found matching '${query}'`, true); return; }
-
-    const activeIdx = folders.findIndex(f => f.isActive);
-    const { typeIdx, itemIdx, item } = found[0];
-    setFolderIdx(activeIdx >= 0 ? activeIdx : 0);
+    const { folderIdx, typeIdx, itemIdx, item, folderName } = picked;
+    setFolderIdx(folderIdx);
     setTypeIdx(typeIdx);
     setItemIdx(itemIdx);
     setFocus('items');
     setViewDetail(true);
-
-    const extra = found.length > 1 ? ` (+${found.length - 1} more match${found.length - 1 !== 1 ? 'es' : ''})` : '';
-    notify(`Jumped to '${item.displayId || item.uuid}'${extra}`);
+    notify(`Jumped to '${item.displayId || item.uuid}' in '${folderLabel(folderName)}'`);
   };
 
   const handleSaveKeybindings = (newBindings) => {
@@ -1031,9 +1022,9 @@ export default function App() {
             onCancel={() => setModal(null)}
           />
         )}
-        {modal === 'search' && activeFolder && (
+        {modal === 'search' && (
           <SearchModal
-            folder={activeFolder}
+            folders={folders}
             onConfirm={handleSearch}
             onCancel={() => setModal(null)}
           />

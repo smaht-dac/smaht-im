@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
-import { folderLabel, LOG_FILE, findItemsByUuid } from './core.js';
+import { folderLabel, LOG_FILE, findItemsByUuidAcrossFolders } from './core.js';
 import { trunc, Spinner, ItemDetailPanel } from './Panels.jsx';
 import {
   DEFAULT_BINDINGS,
@@ -1093,46 +1093,81 @@ export function SetQueryModal({ folder, onConfirm, onCancel }) {
 }
 
 // ── SearchModal ────────────────────────────────────────────────────────────────
-// Jump straight to an item by (partial) uuid within the loaded folder, see
-// findItemsByUuid in core.js for why this is scoped to uuid-only, and to the
-// loaded folder specifically, rather than a general field/cross-folder search.
+// Jump straight to an item by (partial) uuid, across every folder, see
+// findItemsByUuidAcrossFolders in core.js for why this is scoped to
+// uuid-only rather than a general field search. Deliberately minimal until
+// there's something to show: no description text, no field label, just the
+// input and its placeholder, so it reads at a glance as "type a uuid".
+// Results (a real list, not just a count) only take over the modal once a
+// query exists, marking which ones are already in the currently loaded
+// folder (the same ● convention FolderPanel's own row list uses) since
+// that's usually the one that actually matters for a deploy1/deploy2
+// validation failure, even though every folder is searched.
 
-export function SearchModal({ folder, onConfirm, onCancel }) {
+const SEARCH_MAX_VISIBLE = 8;
+const SEARCH_COL_FOLDER = 16;
+const SEARCH_COL_TYPE   = 12;
+
+export function SearchModal({ folders, onConfirm, onCancel }) {
   const [query, setQuery] = useState('');
-  const matches = query.trim() ? findItemsByUuid(folder, query) : [];
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const results = query.trim() ? findItemsByUuidAcrossFolders(folders, query) : [];
+  const clampedIdx = Math.min(selectedIdx, Math.max(0, results.length - 1));
+
+  // A new/changed query invalidates whatever was highlighted before, always
+  // restart at the top match rather than pointing at a now-unrelated row.
+  useEffect(() => { setSelectedIdx(0); }, [query]);
 
   useInput((input, key) => {
     if (key.escape) { onCancel(); return; }
+    if (key.upArrow)   { setSelectedIdx(i => Math.max(0, i - 1)); return; }
+    if (key.downArrow) { setSelectedIdx(i => Math.min(results.length - 1, i + 1)); return; }
+    if (key.return) {
+      const picked = results[clampedIdx];
+      if (picked) onConfirm(picked);
+    }
   });
 
-  let matchLine = null;
-  if (query.trim()) {
-    if (matches.length === 0) {
-      matchLine = <Text color="red">No matching items</Text>;
-    } else if (matches.length === 1) {
-      matchLine = <Text color="green">1 match, Enter to jump to it</Text>;
-    } else {
-      matchLine = <Text color="yellow">{matches.length} matches, Enter jumps to the first</Text>;
-    }
-  }
+  const visible = results.slice(0, SEARCH_MAX_VISIBLE);
+  const hiddenCount = results.length - visible.length;
 
   return (
-    <Dialog title={`/  Find by UUID in '${folderLabel(folder.name)}'`} titleColor="cyan" width={68}>
-      <Text color="gray">Searches every type in the loaded folder for a uuid containing this text.</Text>
-      <Box height={1} />
-      <Box>
-        <Text color="gray">UUID  </Text>
-        <TextInput
-          value={query}
-          onChange={setQuery}
-          placeholder="paste a uuid, or part of one"
-          onSubmit={v => { if (v.trim()) onConfirm(v.trim()); }}
-        />
-      </Box>
-      <Box height={1} />
-      {matchLine}
+    <Dialog title="/  Search" titleColor="cyan" width={86}>
+      <TextInput
+        value={query}
+        onChange={setQuery}
+        placeholder="Search by uuid…"
+      />
+      {query.trim() && (
+        <Box flexDirection="column" marginTop={1}>
+          {visible.length === 0 && <Text color="red">No matching items</Text>}
+          {visible.map((m, i) => {
+            const isCursor = i === clampedIdx;
+            return (
+              <Box key={`${m.folderName}/${m.typeName}/${m.item.uuid}`}>
+                <Text bold={isCursor} color={isCursor ? 'cyan' : m.isActiveFolder ? 'green' : 'white'}>
+                  {isCursor ? '▶ ' : '  '}
+                  {m.isActiveFolder ? '● ' : '  '}
+                  {/* padEnd includes +2 for the gap itself, not just the
+                      column, since JSX collapses whitespace-only text
+                      between expressions on separate lines to nothing, a
+                      gap relying on incidental leftover padding would
+                      vanish whenever content exactly fills the column. */}
+                  {trunc(folderLabel(m.folderName), SEARCH_COL_FOLDER).padEnd(SEARCH_COL_FOLDER + 2)}
+                  {trunc(m.typeName, SEARCH_COL_TYPE).padEnd(SEARCH_COL_TYPE + 2)}
+                  {m.item.uuid}
+                </Text>
+              </Box>
+            );
+          })}
+          {hiddenCount > 0 && (
+            <Text color="gray">+{hiddenCount} more, keep typing to narrow it down</Text>
+          )}
+        </Box>
+      )}
       <ButtonBar buttons={[
-        { key: 'Enter', label: 'Jump to match', color: 'cyan' },
+        { key: 'Enter', label: 'Jump to selected', color: 'cyan' },
+        { key: '↑↓',    label: 'Select', color: 'gray' },
         { key: 'Esc',   label: 'Cancel', color: 'red' },
       ]} />
     </Dialog>
