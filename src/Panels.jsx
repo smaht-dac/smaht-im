@@ -9,7 +9,7 @@ import { INSERT_PREFIX, folderLabel } from './core.js';
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 /** Return a visible slice of items centered on selectedIdx. */
-function visibleWindow(items, selectedIdx, maxRows) {
+export function visibleWindow(items, selectedIdx, maxRows) {
   if (items.length <= maxRows) return { slice: items, offset: 0 };
   const half = Math.floor(maxRows / 2);
   const offset = Math.max(0, Math.min(selectedIdx - half, items.length - maxRows));
@@ -71,7 +71,7 @@ function remoteIndicator(rs) {
 // strip, purely visual breathing room, not overhead needed to fit anything.
 const FOLDERS_COLLAPSED_PAD_X = 1;
 
-export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, selectedNames, collapsed = false, toggleKey }) {
+export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, pullingFolderNames, selectedNames, collapsed = false, toggleKey }) {
 
   useInput((input, key) => {
     if (!isFocused || collapsed) return;
@@ -160,6 +160,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
         const shortName = folderLabel(folder.name);
         const rs  = remoteStatus?.get(folder.name);
         const ind = remoteIndicator(rs);
+        const isPullingThisFolder = pullingFolderNames?.has(folder.name) ?? false;
 
         return (
           <Box key={folder.name} paddingX={1}>
@@ -182,7 +183,9 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
             </Text>
             <Text color="gray"> [{folder.totalItems}]</Text>
             <Box flexGrow={1} />
-            <Text color={ind.color}>{ind.text.padStart(REMOTE_W)}</Text>
+            {isPullingThisFolder
+              ? <FolderRowPullSpinner width={REMOTE_W} />
+              : <Text color={ind.color}>{ind.text.padStart(REMOTE_W)}</Text>}
             <Text color="gray">  {relativeTime(folder.lastUpdated)}</Text>
           </Box>
         );
@@ -609,13 +612,30 @@ export function ItemDetailPanel({ item, height, width = ITEM_DETAIL_WIDTH, isFoc
 
 const SPIN_FRAMES = ['|', '/', '-', '\\'];
 
-export function Spinner() {
+/** Cycling spin frame, shared by Spinner below and FolderRowPullSpinner in
+ *  FolderPanel: each caller mounts its own instance (its own interval), so
+ *  multiple concurrent spinners (e.g. two folders pulling at once) animate
+ *  independently rather than needing one shared, threaded-through frame. */
+function useSpinnerFrame() {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setFrame(f => (f + 1) % SPIN_FRAMES.length), 120);
     return () => clearInterval(id);
   }, []);
-  return <Text color="yellow">{SPIN_FRAMES[frame]} </Text>;
+  return SPIN_FRAMES[frame];
+}
+
+export function Spinner() {
+  const frame = useSpinnerFrame();
+  return <Text color="yellow">{frame} </Text>;
+}
+
+/** Same spinner, formatted to drop into FolderPanel's single-glyph remote-
+ *  indicator column (padStart to `width`, no trailing space) rather than
+ *  Spinner's own "glyph + space" shape, which doesn't match that column. */
+function FolderRowPullSpinner({ width }) {
+  const frame = useSpinnerFrame();
+  return <Text color="cyan">{frame.padStart(width)}</Text>;
 }
 
 // ── ErrorLogPanel ─────────────────────────────────────────────────────────────

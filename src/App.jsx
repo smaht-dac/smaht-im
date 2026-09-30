@@ -152,9 +152,13 @@ export default function App() {
   const [detailCursor,    setDetailCursor]    = useState(0);        // cursor into ItemDetailPanel's flattened row list
   const [detailCollapsed, setDetailCollapsed] = useState(new Set()); // node paths folded in the item JSON tree
   const [errorLog,      setErrorLog]    = useState([]);
-  const [pullState,     setPullState]  = useState(null); // { kind, target, cmd, kill, lastLine, done, success, killed }
-  const pullLinesRef = useRef([]);  // full output buffer for the in-flight/last pull — read by PullLogModal
-  const pullRenderRef = useRef(0);  // throttle timer for lastLine UI updates
+  // Keyed by target folder name, not a single slot: more than one folder
+  // can be pulling at once (see "Concurrent pulls" in CLAUDE.md). Each value
+  // is { kind, target, cmd, kill, lastLine, done, success, killed }, same
+  // shape as the old single pullState, just one per target now.
+  const [pullStates,   setPullStates]  = useState(new Map());
+  const pullLinesRef  = useRef(new Map()); // target -> full output buffer, read by PullLogModal
+  const pullRenderRef = useRef(new Map()); // target -> last-throttled-render timestamp
   const [bindings,      setBindings]    = useState(() => loadBindings());
   const [remoteStatus,  setRemote]      = useState(new Map());
   const [syncDiff,       setSyncDiff]       = useState(null); // { folderName, rows } — folder-sync "what changed"
@@ -172,8 +176,25 @@ export default function App() {
   const currentFolderQuery = currentFolder ? getFolderTracking(currentFolder.name)?.query ?? null : null;
   const currentRemoteStatus = currentFolder ? remoteStatus.get(currentFolder.name) : null;
   const currentFolderBehind = currentRemoteStatus?.status === 'ok' ? currentRemoteStatus.behind : 0;
-  const isPulling     = !!pullState && !pullState.done;
-  const pullingLine   = isPulling ? pullState.lastLine : null; // compact spinner display — hidden once done
+
+  // Actions that act "on the pull" (p/x/E/Footer's hints) are scoped to
+  // whichever folder is currently highlighted, not "the one global pull",
+  // navigate back to a folder that's pulling in the background to view/
+  // cancel it. Other folders' pulls keep running regardless of where the
+  // cursor is; FolderPanel's own per-row spinner is what tracks those.
+  const isFolderPulling = (name) => { const p = pullStates.get(name); return !!p && !p.done; };
+  const currentPullState = currentFolder ? pullStates.get(currentFolder.name) ?? null : null;
+  const isCurrentFolderPulling = !!currentPullState && !currentPullState.done;
+  const pullingLine = isCurrentFolderPulling ? currentPullState.lastLine : null; // compact spinner display, hidden once done
+  const pullingFolderNames = new Set(
+    [...pullStates.entries()].filter(([, p]) => p && !p.done).map(([name]) => name),
+  );
+  // handleCreateFolder's pull is the one case that writes through the
+  // shared working copy (ACTIVE_FOLDER) rather than straight to its own
+  // target folder (see its own comment below); while one is in flight,
+  // nothing else may load a different folder into that same working copy,
+  // or start a second one, regardless of which folder is highlighted.
+  const anyCreatePullInFlight = [...pullStates.values()].some(p => p.kind === 'create' && !p.done);
 
   // ── load ──────────────────────────────────────────────────────────────────
 
@@ -267,24 +288,39 @@ export default function App() {
   };
 
   // ── pull/sync tracking (shared by handleCreateFolder + handleSyncFolder) ─────
+  // All three take `target` explicitly now (the folder name this particular
+  // pull writes to) instead of assuming "the" pull, so concurrent pulls for
+  // different targets each get their own entry rather than clobbering each
+  // other's. See "Concurrent pulls" in CLAUDE.md.
 
   const startPull = (kind, target, cmd, kill) => {
-    pullLinesRef.current = [];
-    pullRenderRef.current = 0;
-    setPullState({ kind, target, cmd, kill, lastLine: cmd, done: false, success: false, killed: false });
+    pullLinesRef.current.set(target, []);
+    pullRenderRef.current.set(target, 0);
+    setPullStates(prev => new Map(prev).set(target, { kind, target, cmd, kill, lastLine: cmd, done: false, success: false, killed: false }));
   };
 
-  const onPullLine = (line) => {
-    pullLinesRef.current.push(line);
+  const onPullLine = (target, line) => {
+    const buf = pullLinesRef.current.get(target) ?? [];
+    buf.push(line);
+    pullLinesRef.current.set(target, buf);
     const now = Date.now();
-    if (now - pullRenderRef.current >= 200) {
-      pullRenderRef.current = now;
-      setPullState(prev => (prev && !prev.done) ? { ...prev, lastLine: line } : prev);
+    const lastRender = pullRenderRef.current.get(target) ?? 0;
+    if (now - lastRender >= 200) {
+      pullRenderRef.current.set(target, now);
+      setPullStates(prev => {
+        const p = prev.get(target);
+        if (!p || p.done) return prev;
+        return new Map(prev).set(target, { ...p, lastLine: line });
+      });
     }
   };
 
-  const finishPull = (success, killed) => {
-    setPullState(prev => prev ? { ...prev, done: true, success, killed } : prev);
+  const finishPull = (target, success, killed) => {
+    setPullStates(prev => {
+      const p = prev.get(target);
+      if (!p) return prev;
+      return new Map(prev).set(target, { ...p, done: true, success, killed });
+    });
   };
 
   // ── global key handler ────────────────────────────────────────────────────
@@ -299,13 +335,13 @@ export default function App() {
     if (matches(bindings.expandLog, input, key)) { setModal('log'); return; }
     if (matches(bindings.viewFullLog, input, key)) { setModal('fulllog'); return; }
     if (matches(bindings.viewPull, input, key)) {
-      if (!pullState) { notify('No pull/sync to show', true); return; }
+      if (!currentPullState) { notify('No pull/sync to show for this folder', true); return; }
       setModal('pull-log');
       return;
     }
     if (matches(bindings.cancelPull, input, key)) {
-      if (!pullState || pullState.done) { notify('No pull/sync in progress', true); return; }
-      pullState.kill();
+      if (!isCurrentFolderPulling) { notify('No pull/sync in progress for this folder', true); return; }
+      currentPullState.kill();
       notify('Cancelling…');
       return;
     }
@@ -505,7 +541,7 @@ export default function App() {
         return;
       }
       if (!currentFolder || !currentType) { notify('No type selected', true); return; }
-      if (isPulling) { notify('Cannot edit while a pull/sync is in progress', true); return; }
+      if (isCurrentFolderPulling) { notify('Cannot edit while this folder is being pulled', true); return; }
       handleEditTypeFile();
       return;
     }
@@ -558,6 +594,7 @@ export default function App() {
     if (matches(bindings.sync, input, key)) {
       if (focus === 'folders') {
         if (!currentFolder) { notify('No folder selected', true); return; }
+        if (isFolderPulling(currentFolder.name)) { notify(`'${folderLabel(currentFolder.name)}' is already being pulled`, true); return; }
         setModal('sync-folder');
       } else if (focus === 'items') {
         const item = currentItems[itemIdx];
@@ -574,6 +611,7 @@ export default function App() {
     }
     if (matches(bindings.pullMore, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
+      if (isFolderPulling(currentFolder.name)) { notify(`'${folderLabel(currentFolder.name)}' is already being pulled`, true); return; }
       setModal('pull-more');
       return;
     }
@@ -582,6 +620,21 @@ export default function App() {
   // ── modal callbacks ───────────────────────────────────────────────────────
 
   const handleLoad = () => {
+    // Loading copies the target's on-disk content into the shared working
+    // copy. Two things could make that unsafe right now, both opened up
+    // by pulls being allowed to run concurrently at all (see
+    // handleCreateFolder's own comment on the same working copy): reading
+    // this folder while ITS OWN pull is still writing it, or clobbering the
+    // working copy while handleCreateFolder's pull still depends on it
+    // mirroring a different folder.
+    if (anyCreatePullInFlight) {
+      notify('Wait for the in-progress new-folder pull to finish first', true);
+      return;
+    }
+    if (isFolderPulling(currentFolder.name)) {
+      notify(`'${folderLabel(currentFolder.name)}' is still being pulled, wait for it to finish before loading it`, true);
+      return;
+    }
     try {
       const msg = switchFolder(currentFolder.name);
       notify(msg);
@@ -608,10 +661,23 @@ export default function App() {
   };
 
   const handleCreateFolder = ({ name, base, queries, env, doLoad }) => {
+    const total = queries?.length ?? 0;
+    // This is the one pull path that writes through the shared working copy
+    // (ACTIVE_FOLDER below) rather than straight to its own target folder,
+    // switchFolder(newName) further down makes that working copy mirror
+    // newName for the duration of the pull, so a second one starting here
+    // (whether another create, or someone loading a different folder
+    // mid-pull, see handleLoad) would read or overwrite it out from under
+    // this one. Checked before creating anything, not just before the pull,
+    // so a refusal here never leaves an orphaned empty folder behind.
+    if (total > 0 && anyCreatePullInFlight) {
+      setModal(null);
+      notify('Wait for the in-progress new-folder pull to finish first', true);
+      return;
+    }
     setModal(null);
     try {
       const newName = createFolder(name, base);
-      const total = queries?.length ?? 0;
       // The new folder exists now regardless of what happens with any pull
       // below, expand the Folders panel (if collapsed) so it's actually
       // visible to navigate to, rather than leaving it hidden behind a
@@ -631,10 +697,10 @@ export default function App() {
           ACTIVE_FOLDER,
           env,
           queries,
-          (i, t, q) => onPullLine(`── Query ${i + 1}/${t}: ${q} ──`),
-          onPullLine,
+          (i, t, q) => onPullLine(newName, `── Query ${i + 1}/${t}: ${q} ──`),
+          (line) => onPullLine(newName, line),
           (result) => {
-            finishPull(result.success, result.killed);
+            finishPull(newName, result.success, result.killed);
             if (result.success) {
               let copied = true;
               try { syncWorkingCopyToFolder(newName); } catch (e) {
@@ -658,7 +724,7 @@ export default function App() {
                 setFolderIdx(0);
               }
             } else {
-              const errOut = pullLinesRef.current.slice(-8).join('\n') || 'pull failed (no output)';
+              const errOut = (pullLinesRef.current.get(newName) ?? []).slice(-8).join('\n') || 'pull failed (no output)';
               pushLog(errOut);
               const cancelled = result.killed;
               let backupId = null;
@@ -782,8 +848,8 @@ export default function App() {
     setModal(null);
     const folderName = currentFolder.name;
     notify(`Syncing '${folderLabel(folderName)}'...`);
-    const { cmd, kill } = syncFolderAsync(folderName, onPullLine, (ok, msg, diff, info) => {
-      finishPull(ok, !!info?.killed);
+    const { cmd, kill } = syncFolderAsync(folderName, (line) => onPullLine(folderName, line), (ok, msg, diff, info) => {
+      finishPull(folderName, ok, !!info?.killed);
       refresh();
       if (!ok) { notify(msg, true); return; }
       triggerRemoteCheck(folderName);
@@ -810,10 +876,10 @@ export default function App() {
       folderName,
       env,
       queries,
-      (i, t, q) => onPullLine(`── Query ${i + 1}/${t}: ${q} ──`),
-      onPullLine,
+      (i, t, q) => onPullLine(folderName, `── Query ${i + 1}/${t}: ${q} ──`),
+      (line) => onPullLine(folderName, line),
       (result) => {
-        finishPull(result.success, result.killed);
+        finishPull(folderName, result.success, result.killed);
         refresh();
         if (!result.success) {
           const verb = result.killed ? 'cancelled' : 'failed';
@@ -1083,13 +1149,13 @@ export default function App() {
             onCancel={() => setModal(null)}
           />
         )}
-        {modal === 'pull-log' && pullState && (
+        {modal === 'pull-log' && currentPullState && (
           <PullLogModal
-            pull={pullState}
-            lines={pullLinesRef.current}
+            pull={currentPullState}
+            lines={pullLinesRef.current.get(currentFolder.name) ?? []}
             cancelKey={bindingLabel(bindings.cancelPull)}
             viewKey={bindingLabel(bindings.viewPull)}
-            onCancel={() => pullState.kill()}
+            onCancel={() => currentPullState.kill()}
             onClose={() => setModal(null)}
           />
         )}
@@ -1144,6 +1210,7 @@ export default function App() {
           height={contentHeight}
           isFocused={focus === 'folders'}
           remoteStatus={remoteStatus}
+          pullingFolderNames={pullingFolderNames}
           selectedNames={selectedFolderNames}
           collapsed={foldersCollapsed}
           toggleKey={bindingLabel(bindings.toggleFolders)}
@@ -1207,7 +1274,7 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} bindings={bindings} pulling={isPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} />
+      <Footer focus={focus} bindings={bindings} pulling={isCurrentFolderPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} />
     </Box>
   );
 }
