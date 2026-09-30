@@ -1108,6 +1108,21 @@ const SEARCH_MAX_VISIBLE = 8;
 const SEARCH_COL_FOLDER = 16;
 const SEARCH_COL_TYPE   = 12;
 
+/**
+ * Split `text` into [before, match, after] around the first case-insensitive
+ * occurrence of `query`, so the caller can render the matched part styled
+ * differently from the rest. Falls back to [text, '', ''] if not found,
+ * shouldn't happen for a uuid that findItemsByUuid* already matched this
+ * same query against, but this is a display helper, not the matcher itself,
+ * so it stays defensive rather than assuming its caller's invariant holds.
+ */
+function splitAtMatch(text, query) {
+  const q = query.trim();
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (!q || idx === -1) return [text, '', ''];
+  return [text.slice(0, idx), text.slice(idx, idx + q.length), text.slice(idx + q.length)];
+}
+
 export function SearchModal({ folders, onConfirm, onCancel }) {
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -1149,6 +1164,12 @@ export function SearchModal({ folders, onConfirm, onCancel }) {
           {visible.length === 0 && <Text color="red">No matching items</Text>}
           {visible.map((m, i) => {
             const isCursor = (i + offset) === clampedIdx;
+            // Underlined, not bolded: the cursor row is already fully bold
+            // (see `bold={isCursor}` just below), so bolding the matched
+            // substring on top of that would be invisible on exactly the
+            // row it matters most on. Underline is a separate dimension,
+            // so it stays visible whether or not the row itself is bold.
+            const [before, match, after] = splitAtMatch(m.item.uuid, query);
             return (
               <Box key={`${m.folderName}/${m.typeName}/${m.item.uuid}`}>
                 <Text bold={isCursor} color={isCursor ? 'cyan' : m.isActiveFolder ? 'green' : 'white'}>
@@ -1161,7 +1182,7 @@ export function SearchModal({ folders, onConfirm, onCancel }) {
                       vanish whenever content exactly fills the column. */}
                   {trunc(folderLabel(m.folderName), SEARCH_COL_FOLDER).padEnd(SEARCH_COL_FOLDER + 2)}
                   {trunc(m.typeName, SEARCH_COL_TYPE).padEnd(SEARCH_COL_TYPE + 2)}
-                  {m.item.uuid}
+                  {before}<Text underline>{match}</Text>{after}
                 </Text>
               </Box>
             );
