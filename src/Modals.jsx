@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useStdout } from 'ink';
 import TextInput from 'ink-text-input';
 import { folderLabel, LOG_FILE, findItemsByUuidAcrossFolders } from './core.js';
-import { trunc, Spinner, ItemDetailPanel } from './Panels.jsx';
+import { trunc, Spinner, ItemDetailPanel, visibleWindow } from './Panels.jsx';
 import {
   DEFAULT_BINDINGS,
   bindingLabel,
@@ -1128,8 +1128,14 @@ export function SearchModal({ folders, onConfirm, onCancel }) {
     }
   });
 
-  const visible = results.slice(0, SEARCH_MAX_VISIBLE);
-  const hiddenCount = results.length - visible.length;
+  // Scrolls to follow clampedIdx, same windowing FolderPanel/TypePanel/
+  // ItemsPanel already use, rather than a flat slice(0, N): a flat slice
+  // only ever shows the first SEARCH_MAX_VISIBLE rows, so once the cursor
+  // moved past the last of those, it pointed at a row that was never
+  // rendered at all, the highlight had nothing to attach to and just
+  // vanished. `i` inside the map below is an index into `visible`, not
+  // `results`, so the cursor check has to compare against `i + offset`.
+  const { slice: visible, offset } = visibleWindow(results, clampedIdx, SEARCH_MAX_VISIBLE);
 
   return (
     <Dialog title="/  Search" titleColor="cyan" width={86}>
@@ -1142,7 +1148,7 @@ export function SearchModal({ folders, onConfirm, onCancel }) {
         <Box flexDirection="column" marginTop={1}>
           {visible.length === 0 && <Text color="red">No matching items</Text>}
           {visible.map((m, i) => {
-            const isCursor = i === clampedIdx;
+            const isCursor = (i + offset) === clampedIdx;
             return (
               <Box key={`${m.folderName}/${m.typeName}/${m.item.uuid}`}>
                 <Text bold={isCursor} color={isCursor ? 'cyan' : m.isActiveFolder ? 'green' : 'white'}>
@@ -1160,8 +1166,8 @@ export function SearchModal({ folders, onConfirm, onCancel }) {
               </Box>
             );
           })}
-          {hiddenCount > 0 && (
-            <Text color="gray">+{hiddenCount} more, keep typing to narrow it down</Text>
+          {results.length > SEARCH_MAX_VISIBLE && (
+            <Text color="gray">{clampedIdx + 1} of {results.length} matches</Text>
           )}
         </Box>
       )}
