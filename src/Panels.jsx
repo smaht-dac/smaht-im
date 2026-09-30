@@ -109,6 +109,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
     return (
       <Box
         width={collapsedWidth}
+        flexShrink={0}
         height={height}
         flexDirection="column"
         justifyContent="center"

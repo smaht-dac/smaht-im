@@ -25,6 +25,7 @@ useTempEnv();
 process.env.FORCE_COLOR = '1';
 
 const React = (await import('react')).default;
+const { Box, Text } = await import('ink');
 const { render } = await import('ink-testing-library');
 const { FolderPanel } = await importJsx(fileURLToPath(new URL('../src/Panels.jsx', import.meta.url)));
 
@@ -68,6 +69,36 @@ describe('FolderPanel focus highlighting, collapsed', () => {
   test('width fits the current binding fully: a longer rebound key is never truncated', () => {
     const frame = renderFolderPanel({ isFocused: false, collapsed: true, toggleKey: '^F' });
     assert.match(frame, /\[\^F\]/);
+  });
+
+  // Regression test: App.jsx renders this panel as a row-sibling of a
+  // flexGrow={1} right column. Without flexShrink={0}, Yoga's default
+  // flexShrink (1, same as CSS flexbox) would squeeze this panel below its
+  // own computed width whenever the terminal is too narrow to fit both
+  // sides in full, wrapping the bracketed key onto multiple lines instead
+  // of keeping it on one. Reproduce that exact sibling layout here rather
+  // than rendering FolderPanel alone, since the bug only appears under
+  // real space pressure from a competing flex sibling.
+  test('never wraps the bracketed key onto a second line, even under space pressure from a flex sibling', () => {
+    const frame = render(
+      React.createElement(
+        Box,
+        { flexDirection: 'row', width: 20 },
+        React.createElement(FolderPanel, {
+          folders,
+          selectedIdx: 0,
+          onSelect: () => {},
+          height: 10,
+          remoteStatus: new Map(),
+          selectedNames: new Set(),
+          isFocused: false,
+          collapsed: true,
+          toggleKey: 'Delete',
+        }),
+        React.createElement(Box, { flexGrow: 1 }, React.createElement(Text, null, 'x'.repeat(50))),
+      ),
+    ).lastFrame();
+    assert.match(frame, /\[Delete\]/);
   });
 });
 
