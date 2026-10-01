@@ -503,6 +503,53 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   return { moved, skipped, message };
 }
 
+/**
+ * Move a set of items (by UUID) to just before/after a target item within
+ * the SAME type file, preserving the moved items' relative on-disk order
+ * among themselves. This is the in-app answer to the load-order problem
+ * editTypeFile's docstring above describes (some inserts reference others
+ * that must appear earlier in the same file) for the common case of "move
+ * this block to sit right before/after that item," still limited to one
+ * target position, not arbitrary interleaving, which is what $EDITOR
+ * remains for.
+ *
+ * Backs the folder up first, same as editTypeFile, since this is the same
+ * class of "directly rewrite a type file" operation a bad hand-edit would
+ * also risk. Throws if the target is itself part of the moved set (nothing
+ * to anchor to) or isn't found in the file, both are caller bugs (the
+ * target picker UI excludes selected items), not something a user action
+ * can trigger directly.
+ *
+ * Returns { moved, insertAt, message }. insertAt is the moved block's new
+ * starting index in the rewritten array, so a caller (App.jsx) can move the
+ * items cursor to show the result in place rather than leaving it pointing
+ * at whatever now sits at the old index.
+ */
+export function reorderItems(folderName, typeName, uuidSet, targetUuid, position) {
+  if (!folderName.startsWith(INSERT_PREFIX)) throw new Error(`'${folderName}' is not a valid branch`);
+  if (uuidSet.has(targetUuid)) throw new Error('Target item cannot be part of the selection being moved');
+
+  const filePath = path.join(resolveFolderPath(folderName), `${typeName}.json`);
+  const all = readJson(filePath) ?? [];
+
+  const moved = all.filter(item => uuidSet.has(item.uuid));
+  const rest  = all.filter(item => !uuidSet.has(item.uuid));
+  if (!moved.length) return { moved: 0, insertAt: 0, message: 'No matching items found' };
+
+  const targetIdx = rest.findIndex(item => item.uuid === targetUuid);
+  if (targetIdx === -1) throw new Error(`Target item not found in '${typeName}.json'`);
+
+  backupFolder(folderName, `before reordering ${typeName}.json`);
+
+  const insertAt = position === 'before' ? targetIdx : targetIdx + 1;
+  const reordered = [...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)];
+  writeJson(filePath, reordered);
+  refreshWorkingCopyIfActive(folderName);
+
+  const n = moved.length;
+  return { moved: n, insertAt, message: `Moved ${n} item${n !== 1 ? 's' : ''} ${position} target` };
+}
+
 // ── diff ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -687,9 +734,11 @@ const HIDE_CURSOR      = '\x1b[?25l';
 
 /**
  * Open a folder's type file directly in the user's editor ($VISUAL, then
- * $EDITOR, falling back to `vi`) for hand-edits the app has no UI for (e.g.
- * reordering objects within the array, since some inserts reference others
- * that must appear earlier in the same file). The folder is backed up
+ * $EDITOR, falling back to `vi`) for hand-edits the app has no dedicated UI
+ * for. reorderItems (above) now covers the common "move this selected block
+ * before/after another item" case (e.g. some inserts reference others that
+ * must appear earlier in the same file), but arbitrary interleaving beyond
+ * one target position is still an editor job. The folder is backed up
  * first, same as every other write path in this file, so a bad hand-edit
  * is always recoverable via restoreBackup.
  *

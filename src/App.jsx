@@ -14,6 +14,7 @@ import {
   renameFolder,
   deleteFolder,
   moveItems,
+  reorderItems,
   computeDiff,
   ACTIVE_FOLDER,
   folderLabel,
@@ -50,6 +51,7 @@ import {
   SnapshotModal,
   DeleteModal,
   MoveModal,
+  ReorderModal,
   DiffModal,
   HelpModal,
   KeybindingsModal,
@@ -79,6 +81,7 @@ function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed }) {
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
+    { key: bindingLabel(kb.reorderItems), desc: 'Reorder', active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' || focus === 'detail' },
     { key: bindingLabel(kb.toggleFolders), desc: foldersCollapsed ? 'Show Folders' : 'Hide Folders', active: true },
@@ -478,6 +481,16 @@ export default function App() {
       setModal('move');
       return;
     }
+    if (matches(bindings.reorderItems, input, key)) {
+      if (!currentType) { notify('No type selected', true); return; }
+      if (selectedUuids.size === 0) { notify('Select items first (Space)', true); return; }
+      if (selectedUuids.size === currentItems.length) {
+        notify('Select fewer than all items, there must be something left to anchor to', true);
+        return;
+      }
+      setModal('reorder');
+      return;
+    }
     if (matches(bindings.selectAll, input, key)) {
       setSelected(new Set(currentItems.map(i => i.uuid)));
       notify(`Selected all ${currentItems.length} items`);
@@ -805,6 +818,19 @@ export default function App() {
     }
   };
 
+  const handleReorder = (targetUuid, position) => {
+    setModal(null);
+    try {
+      const result = reorderItems(currentFolder.name, currentType.name, selectedUuids, targetUuid, position);
+      notify(result.message);
+      setSelected(new Set());
+      setItemIdx(result.insertAt);
+      refresh();
+    } catch (e) {
+      notify(e.message, true);
+    }
+  };
+
   const handleAnonymize = ({ name, seed }) => {
     setModal(null);
     try {
@@ -1004,6 +1030,11 @@ export default function App() {
       ? folders.filter(f => f.name !== currentFolder?.name)
       : [];
     const selectedItemObjs = currentItems.filter(i => selectedUuids.has(i.uuid));
+    // Every other item in the current type, nothing to anchor a selected
+    // item to itself, so the target picker excludes whatever's selected.
+    const reorderTargets = modal === 'reorder'
+      ? currentItems.filter(i => !selectedUuids.has(i.uuid))
+      : [];
 
     return (
       <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
@@ -1043,6 +1074,16 @@ export default function App() {
             typeName={currentType?.name}
             destinations={dstFolders}
             onConfirm={handleMove}
+            onCancel={() => setModal(null)}
+          />
+        )}
+        {modal === 'reorder' && (
+          <ReorderModal
+            selectedItems={selectedItemObjs}
+            targets={reorderTargets}
+            typeName={currentType?.name}
+            folderName={currentFolder?.name}
+            onConfirm={handleReorder}
             onCancel={() => setModal(null)}
           />
         )}
@@ -1183,6 +1224,7 @@ export default function App() {
     select:    bindingLabel(bindings.selectItem),
     selectAll: bindingLabel(bindings.selectAll),
     move:      bindingLabel(bindings.moveItems),
+    reorder:   bindingLabel(bindings.reorderItems),
   };
 
   return (

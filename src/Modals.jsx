@@ -400,6 +400,93 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
   );
 }
 
+// ── ReorderModal ──────────────────────────────────────────────────────────────
+
+const REORDER_MAX_VISIBLE = 8;
+
+/**
+ * Move the already-selected items to sit just before/after a target item
+ * within the SAME type file (reorderItems in core.js), the in-app answer
+ * to the "some inserts reference others that must load earlier in the same
+ * file" problem (e.g. unaligned_reads' R2 entries needing to come after
+ * their R1), for the common case of "move this block to one spot," not
+ * arbitrary interleaving (still an $EDITOR job, see "Manual edit in
+ * $EDITOR" in CLAUDE.md).
+ *
+ * `targets` is every item in the type EXCEPT the selected ones (there's
+ * nothing to anchor a selected item to itself), precomputed by the caller
+ * the same way MoveModal's `destinations` is. Scrolls with visibleWindow
+ * like SearchModal's result list, since a type like unaligned_reads can
+ * hold far more than REORDER_MAX_VISIBLE items, unlike MoveModal's own
+ * folder-destination list which never needs to scroll in practice.
+ */
+export function ReorderModal({ selectedItems, targets, typeName, folderName, onConfirm, onCancel }) {
+  const [targetIdx, setTargetIdx] = useState(0);
+  const clampedIdx = Math.min(targetIdx, Math.max(0, targets.length - 1));
+
+  useInput((input, key) => {
+    if (key.escape || input === 'n') { onCancel(); return; }
+    if (key.upArrow   || input === 'k') setTargetIdx(i => Math.max(0, i - 1));
+    if (key.downArrow || input === 'j') setTargetIdx(i => Math.min(targets.length - 1, i + 1));
+    if (!targets[clampedIdx]) return;
+    if (key.return) { onConfirm(targets[clampedIdx].uuid, 'after'); return; }
+    if (input === 'b') { onConfirm(targets[clampedIdx].uuid, 'before'); return; }
+  });
+
+  const { slice: visible, offset } = visibleWindow(targets, clampedIdx, REORDER_MAX_VISIBLE);
+
+  return (
+    <Dialog
+      title={`⇅  Reorder ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''} in ${folderLabel(folderName)}/${typeName}.json`}
+      titleColor="yellow"
+      width={78}
+    >
+      <Text color="gray">Selected:</Text>
+      {selectedItems.slice(0, 5).map(item => (
+        <Box key={item.uuid} paddingLeft={2}>
+          <Text color="white">
+            {item.uuid.slice(0, 16)}…  {item.displayId}
+          </Text>
+        </Box>
+      ))}
+      {selectedItems.length > 5 && (
+        <Box paddingLeft={2}>
+          <Text color="gray">…and {selectedItems.length - 5} more</Text>
+        </Box>
+      )}
+
+      <Box height={1} />
+      <Text color="yellow">Target item  (↑↓ / jk to choose):</Text>
+
+      {targets.length === 0 && (
+        <Text color="red">  No other items in this type to reorder against</Text>
+      )}
+      {visible.map((item, i) => {
+        const isCursor = (i + offset) === clampedIdx;
+        return (
+          <Box key={item.uuid} paddingLeft={2}>
+            <Text bold={isCursor} color={isCursor ? 'green' : 'gray'}>
+              {isCursor ? '▶ ' : '  '}
+              {item.uuid.slice(0, 16)}…  {item.displayId}
+            </Text>
+          </Box>
+        );
+      })}
+      {targets.length > REORDER_MAX_VISIBLE && (
+        <Text color="gray">  {clampedIdx + 1} of {targets.length}</Text>
+      )}
+
+      <ButtonBar
+        buttons={[
+          { key: 'Enter', label: 'After target', color: 'green' },
+          { key: 'b', label: 'Before target', color: 'cyan' },
+          { key: 'Esc / n', label: 'Cancel', color: 'red' },
+        ]}
+      />
+    </Dialog>
+  );
+}
+
 // ── DiffModal ─────────────────────────────────────────────────────────────────
 
 export function DiffModal({ nameA, nameB, diff, onClose }) {
@@ -551,6 +638,7 @@ function buildHelpRows(bindings) {
     ['Items panel (bottom-right)', ''],
     [`  ${selKey}`,                       'Toggle item selection (multi-select)'],
     [b('moveItems'),                      'Move selected items to another folder'],
+    [b('reorderItems'),                   'Move selected items before/after another item in the same type file'],
     [b('copyClipboard'),                  'Copy selected items (or the highlighted one) to the clipboard as JSON'],
     [b('rangeSelect'),                    'Mark range start / select every item between there and here'],
     [b('selectAll'),                      'Select all items in the current type'],

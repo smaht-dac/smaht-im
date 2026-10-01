@@ -24,6 +24,7 @@ export const DEFAULT_BINDINGS = {
   diff:         { key: 'd',      ctrl: false, label: 'Diff folder' },
   deleteFolder: { key: 'D',      ctrl: false, label: 'Delete folder' },
   moveItems:    { key: 'm',      ctrl: false, label: 'Move items' },
+  reorderItems: { key: 'P',      ctrl: false, label: 'Reorder items before/after another (same type)' },
   copyClipboard: { key: 'y',     ctrl: false, label: 'Copy to clipboard (context-aware)' },
   rangeSelect:  { key: 'v',      ctrl: false, label: 'Select range (context-aware)' },
   selectItem:   { key: ' ',      ctrl: false, label: 'Toggle / load (context-aware)' },

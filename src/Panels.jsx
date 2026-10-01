@@ -364,7 +364,8 @@ export function ItemsPanel({
           <Text color="gray" wrap="truncate-end">
             {' '}{hints?.select ?? 'Space'}=sel{'  '}
             {hints?.selectAll ?? 'ctrl+a'}=all{'  '}
-            {hints?.move ?? 'm'}=move{'  '}Enter=view{'  '}Esc=clr
+            {hints?.move ?? 'm'}=move{'  '}
+            {hints?.reorder ?? 'P'}=reorder{'  '}Enter=view{'  '}Esc=clr
           </Text>
         )}
       </Box>

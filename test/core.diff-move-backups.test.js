@@ -176,6 +176,93 @@ describe('moveItems', () => {
   });
 });
 
+describe('reorderItems', () => {
+  test('moves the selection to just before the target, preserving their own relative order', () => {
+    const full = core.createFolder('reorder-before');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'a' }, { uuid: 'b' }, { uuid: 'c' }, { uuid: 'd' }],
+    });
+
+    // Select b and d (in that file order) and anchor them before a.
+    const result = core.reorderItems(full, 'donor', new Set(['d', 'b']), 'a', 'before');
+    assert.equal(result.moved, 2);
+    assert.equal(result.insertAt, 0);
+
+    const donor = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, full, 'donor.json'), 'utf8'));
+    assert.deepEqual(donor.map(i => i.uuid), ['b', 'd', 'a', 'c']);
+  });
+
+  test('moves the selection to just after the target', () => {
+    const full = core.createFolder('reorder-after');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'a' }, { uuid: 'b' }, { uuid: 'c' }],
+    });
+
+    const result = core.reorderItems(full, 'donor', new Set(['a']), 'b', 'after');
+    assert.equal(result.insertAt, 1);
+
+    const donor = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, full, 'donor.json'), 'utf8'));
+    assert.deepEqual(donor.map(i => i.uuid), ['b', 'a', 'c']);
+  });
+
+  test('backs the folder up first, same as editTypeFile', () => {
+    const full = core.createFolder('reorder-backup');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'a' }, { uuid: 'b' }] });
+
+    core.reorderItems(full, 'donor', new Set(['a']), 'b', 'after');
+    assert.equal(core.listBackups(full).length, 1);
+  });
+
+  test('mirrors the result into the working copy when the reordered folder is currently loaded', () => {
+    const full = core.createFolder('reorder-active');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'a' }, { uuid: 'b' }] });
+    core.switchFolder(full);
+
+    core.reorderItems(full, 'donor', new Set(['b']), 'a', 'before');
+
+    const working = JSON.parse(
+      fs.readFileSync(path.join(core.INSERTS_BASE, core.ACTIVE_FOLDER, 'donor.json'), 'utf8'),
+    );
+    assert.deepEqual(working.map(i => i.uuid), ['b', 'a']);
+  });
+
+  test('returns 0 moved and leaves the file untouched when nothing in the selection matches', () => {
+    const full = core.createFolder('reorder-nomatch');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'a' }, { uuid: 'b' }] });
+
+    const result = core.reorderItems(full, 'donor', new Set(['not-there']), 'a', 'after');
+    assert.equal(result.moved, 0);
+    assert.match(result.message, /No matching items/);
+  });
+
+  test('throws when the target is itself part of the selection', () => {
+    const full = core.createFolder('reorder-self-target');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'a' }, { uuid: 'b' }] });
+
+    assert.throws(
+      () => core.reorderItems(full, 'donor', new Set(['a']), 'a', 'after'),
+      /cannot be part of the selection/,
+    );
+  });
+
+  test('throws when the target does not exist in the file', () => {
+    const full = core.createFolder('reorder-missing-target');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), { donor: [{ uuid: 'a' }, { uuid: 'b' }] });
+
+    assert.throws(
+      () => core.reorderItems(full, 'donor', new Set(['a']), 'not-there', 'after'),
+      /Target item not found/,
+    );
+  });
+
+  test('refuses a non-prefixed folder name', () => {
+    assert.throws(
+      () => core.reorderItems('not-valid', 'donor', new Set(['a']), 'b', 'after'),
+      /not a valid branch/,
+    );
+  });
+});
+
 describe('backupFolder / listBackups / restoreBackup', () => {
   test('backupFolder returns null for a folder with no JSON files', () => {
     const full = core.createFolder('backup-empty');
