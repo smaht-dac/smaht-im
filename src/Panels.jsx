@@ -140,6 +140,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   return (
     <Box
       width={panelWidth}
+      flexShrink={0}
       height={height}
       flexDirection="column"
       borderStyle="single"
@@ -147,13 +148,19 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
     >
       {/* Title bar */}
       <Box paddingX={1}>
-        <Text bold color={isFocused ? 'green' : 'white'}>
+        <Text bold color={isFocused ? 'green' : 'white'} wrap="truncate-end">
           {' Folders '}
         </Text>
-        <Text color="gray">({folders.length})</Text>
+        <Text color="gray" wrap="truncate-end">({folders.length})</Text>
       </Box>
 
-      {/* Folder list */}
+      {/* Folder list — wrap="truncate-end" on every Text here, same reason
+          as ItemsPanel (see "Items panel columns" in CLAUDE.md): panelWidth
+          is computed from content, but without flexShrink={0} above this
+          Box could still get squeezed below that by a narrow real terminal,
+          and without wrap the overflow wraps onto a second line instead of
+          just losing its tail — trunc()/padStart() handle the sized-correctly
+          case, this is the backstop for when something still doesn't fit. */}
       {slice.map((folder, i) => {
         const realIdx = i + offset;
         const isCursor = realIdx === selectedIdx;
@@ -167,6 +174,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
           <Box key={folder.name} paddingX={1}>
             <Text
               bold={isCursor && isFocused}
+              wrap="truncate-end"
               color={
                 isCursor && isFocused
                   ? 'green'
@@ -182,12 +190,12 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
               {folder.isActive ? '● ' : '  '}
               {trunc(shortName, nameWidth)}
             </Text>
-            <Text color="gray"> [{folder.totalItems}]</Text>
+            <Text color="gray" wrap="truncate-end"> [{folder.totalItems}]</Text>
             <Box flexGrow={1} />
             {isPullingThisFolder
               ? <FolderRowPullSpinner width={REMOTE_W} />
-              : <Text color={ind.color}>{ind.text.padStart(REMOTE_W)}</Text>}
-            <Text color="gray">  {relativeTime(folder.lastUpdated)}</Text>
+              : <Text color={ind.color} wrap="truncate-end">{ind.text.padStart(REMOTE_W)}</Text>}
+            <Text color="gray" wrap="truncate-end">  {relativeTime(folder.lastUpdated)}</Text>
           </Box>
         );
       })}

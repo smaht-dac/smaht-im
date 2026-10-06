@@ -77,8 +77,14 @@ function writeJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 4));
 }
 
+// Keeps every folder's displayed label (folderLabel() strips INSERT_PREFIX
+// back off, so this is exactly what shows up in FolderPanel) short enough
+// to never need wrapping there, user-provided or auto-generated alike.
+const MAX_FOLDER_NAME_LEN = 50;
+
 function safeSlug(name) {
-  return name.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9_-]/g, '');
+  const cleaned = name.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9_-]/g, '');
+  return cleaned.slice(0, MAX_FOLDER_NAME_LEN);
 }
 
 function displayId(item) {
@@ -185,11 +191,32 @@ function refreshWorkingCopyIfActive(folderName) {
   }
 }
 
-/** Generate a unique folder name based on the current local date-time. */
-function timestampFolderName() {
+/**
+ * Generate a unique, reasonably descriptive folder name for a snapshot
+ * created with no user input available (see loadAllFolders' auto-snapshot-
+ * on-divergence safety net below) — date/time plus a short hint of which
+ * type(s) the data actually contains, e.g. "20261006-1025-donor" or
+ * "20261006-1025-donor-2more", rather than a bare timestamp that gives no
+ * indication of what's actually in the folder. `typeNames` is optional so
+ * this still degenerates to the old date-only behavior if ever called
+ * without it. Routed through safeSlug() for the same character-safety and
+ * MAX_FOLDER_NAME_LEN cap every other folder name gets — note this is also
+ * why the hint uses "-Nmore" rather than "+Nmore": safeSlug's character
+ * whitelist (`[a-zA-Z0-9_-]`) silently strips a "+", which would otherwise
+ * collapse "donor+2more" down to the much less readable "donor2more".
+ */
+function timestampFolderName(typeNames = []) {
   const d   = new Date();
   const pad = n => String(n).padStart(2, '0');
-  const base = `${INSERT_PREFIX}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  const stamp = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+
+  let hint = '';
+  if (typeNames.length > 0) {
+    const first = typeNames[0].slice(0, 20);
+    hint = typeNames.length > 1 ? `-${first}-${typeNames.length - 1}more` : `-${first}`;
+  }
+
+  const base = `${INSERT_PREFIX}-${safeSlug(stamp + hint)}`;
   if (!fs.existsSync(resolveFolderPath(base))) return base;
   for (let i = 2; i < 100; i++) {
     const c = `${base}-${i}`;
@@ -238,7 +265,11 @@ export function loadAllFolders() {
   // If temp-local-inserts has data that differs from the loaded folder,
   // snapshot it into a new timestamped folder and make that the loaded one.
   if (workingHasData && (!active || !workingCopyMatchesFolder(active))) {
-    const newName = timestampFolderName();
+    const typeNames = fs.readdirSync(activePath)
+      .filter(f => f.endsWith('.json'))
+      .map(f => f.replace(/\.json$/, ''))
+      .sort();
+    const newName = timestampFolderName(typeNames);
     fs.cpSync(activePath, resolveFolderPath(newName), { recursive: true });
     names.push(newName);
     setLoadedFolder(newName);
