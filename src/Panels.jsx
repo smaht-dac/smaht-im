@@ -373,7 +373,7 @@ export function ItemsPanel({
             {' '}{hints?.select ?? 'Space'}=sel{'  '}
             {hints?.selectAll ?? 'ctrl+a'}=all{'  '}
             {hints?.move ?? 'm'}=move{'  '}
-            {hints?.reorder ?? 'P'}=reorder{'  '}Enter=view{'  '}Esc=clr
+            a/b=after/before{'  '}Enter=view{'  '}Esc=clr
           </Text>
         )}
       </Box>

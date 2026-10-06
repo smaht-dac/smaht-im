@@ -187,10 +187,11 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
 | `y` | Folders | **Copy** every item in the folder (or all selected folders, merged) to the clipboard as JSON (`{ typeName: [...] }`) |
 | `y` | Types | **Copy** every item in the highlighted type to the clipboard as a plain JSON array |
-| `E` | Types / Items | **Edit** the highlighted type's JSON file directly in `$EDITOR`/`$VISUAL` (falls back to `vi`), for hand-edits the app has no UI for, e.g. reordering objects so one that's referenced appears earlier in the file. Backs the folder up first (`H` to restore). If this folder is currently loaded, the edit is mirrored into the working copy immediately, so it isn't mistaken for an external edit and auto-snapshotted into a new folder next launch |
+| `E` | Types / Items | **Edit** the highlighted type's JSON file directly in `$EDITOR`/`$VISUAL` (falls back to `vi`), for hand-edits the app has no dedicated UI for (arbitrary interleaving, editing field values). Backs the folder up first (`H` to restore). If this folder is currently loaded, the edit is mirrored into the working copy immediately, so it isn't mistaken for an external edit and auto-snapshotted into a new folder next launch |
 | `v` | Folders | **Range select** — mark the start here, move, press again to select every folder in between |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
+| `a` / `b` | Items | **Reorder** — move selected items to right after / before the highlighted (unselected) item, same type file. Useful when one insert references another by UUID and the referenced item needs to load first (e.g. `unaligned_reads`' `R2` entries needing to come after their `R1`) |
 | `y` | Items | **Copy** selected items (or the highlighted one) to the clipboard as JSON |
 | `v` | Items | **Range select** — mark the start here, move, press again to select every item in between |
 | `^A` (ctrl+a) | Items | Select all items in the current type |

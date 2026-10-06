@@ -51,7 +51,6 @@ import {
   SnapshotModal,
   DeleteModal,
   MoveModal,
-  ReorderModal,
   DiffModal,
   HelpModal,
   KeybindingsModal,
@@ -81,7 +80,7 @@ function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed, pullin
     { key: bindingLabel(kb.load),         desc: 'Load',    active: focus === 'folders' },
     { key: bindingLabel(kb.snapshot),     desc: 'Snap',    active: true },
     { key: bindingLabel(kb.moveItems),    desc: 'Move',    active: focus === 'items' },
-    { key: bindingLabel(kb.reorderItems), desc: 'Reorder', active: focus === 'items' },
+    { key: 'a/b',                        desc: 'Move after/before', active: focus === 'items' },
     { key: bindingLabel(kb.copyClipboard), desc: 'Copy',   active: focus === 'folders' || focus === 'types' || focus === 'items' },
     { key: bindingLabel(kb.editFile),      desc: 'Edit',   active: focus === 'types' || focus === 'items' || focus === 'detail' },
     { key: bindingLabel(kb.toggleFolders), desc: foldersCollapsed ? 'Show Folders' : 'Hide Folders', active: true },
@@ -428,6 +427,32 @@ export default function App() {
       return;
     }
 
+    // Reorder selected items directly from the Items panel: select some
+    // (Space/v), move the cursor onto an unselected item to anchor to,
+    // then `a` (after) or `b` (before) moves them there immediately — the
+    // Items panel's own cursor picks the target, so there's no separate
+    // modal/picker step anymore (ReorderModal and the `P` binding it used
+    // are both gone, replaced by this). Hardcoded rather than added to the
+    // bindings system: `a` is also the rebindable `load` binding's own key,
+    // and load's handler below doesn't check focus at all, so this has to
+    // run first and shadow it specifically for focus === 'items' — same
+    // "claims a key the bindings system doesn't fully own" shape as Space
+    // inside the item detail panel (see "Item detail panel" in CLAUDE.md).
+    if (focus === 'items' && (input === 'a' || input === 'b')) {
+      if (!currentType) return;
+      if (selectedUuids.size === 0) {
+        notify('Select items first (Space/v), then a/b to move them', true);
+        return;
+      }
+      const target = currentItems[itemIdx];
+      if (!target || selectedUuids.has(target.uuid)) {
+        notify('Move the cursor to an unselected item to anchor to', true);
+        return;
+      }
+      handleReorder(target.uuid, input === 'a' ? 'after' : 'before');
+      return;
+    }
+
     // Folders panel actions
     if (matches(bindings.rename, input, key)) {
       if (!currentFolder) { notify('No folder selected', true); return; }
@@ -494,16 +519,6 @@ export default function App() {
       if (!currentType) { notify('No type selected', true); return; }
       if (selectedUuids.size === 0) { notify('Select items first (Space)', true); return; }
       setModal('move');
-      return;
-    }
-    if (matches(bindings.reorderItems, input, key)) {
-      if (!currentType) { notify('No type selected', true); return; }
-      if (selectedUuids.size === 0) { notify('Select items first (Space)', true); return; }
-      if (selectedUuids.size === currentItems.length) {
-        notify('Select fewer than all items, there must be something left to anchor to', true);
-        return;
-      }
-      setModal('reorder');
       return;
     }
     if (matches(bindings.selectAll, input, key)) {
@@ -1045,11 +1060,6 @@ export default function App() {
       ? folders.filter(f => f.name !== currentFolder?.name)
       : [];
     const selectedItemObjs = currentItems.filter(i => selectedUuids.has(i.uuid));
-    // Every other item in the current type, nothing to anchor a selected
-    // item to itself, so the target picker excludes whatever's selected.
-    const reorderTargets = modal === 'reorder'
-      ? currentItems.filter(i => !selectedUuids.has(i.uuid))
-      : [];
 
     return (
       <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
@@ -1089,16 +1099,6 @@ export default function App() {
             typeName={currentType?.name}
             destinations={dstFolders}
             onConfirm={handleMove}
-            onCancel={() => setModal(null)}
-          />
-        )}
-        {modal === 'reorder' && (
-          <ReorderModal
-            selectedItems={selectedItemObjs}
-            targets={reorderTargets}
-            typeName={currentType?.name}
-            folderName={currentFolder?.name}
-            onConfirm={handleReorder}
             onCancel={() => setModal(null)}
           />
         )}
@@ -1239,7 +1239,6 @@ export default function App() {
     select:    bindingLabel(bindings.selectItem),
     selectAll: bindingLabel(bindings.selectAll),
     move:      bindingLabel(bindings.moveItems),
-    reorder:   bindingLabel(bindings.reorderItems),
   };
 
   return (
