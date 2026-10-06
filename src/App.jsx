@@ -44,7 +44,7 @@ import {
   bindingLabel,
 } from './keybindings.js';
 
-import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ItemDetailPanel, ErrorLogPanel } from './Panels.jsx';
+import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ItemDetailPanel, ErrorLogPanel, Spinner } from './Panels.jsx';
 import {
   NewFolderModal,
   RenameModal,
@@ -72,7 +72,7 @@ import {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed }) {
+function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed, pullingCount }) {
   const kb = bindings;
   const actions = [
     { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
@@ -116,6 +116,21 @@ function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed }) {
 
   return (
     <Box borderStyle="single" borderColor="gray" paddingX={1} flexWrap="wrap">
+      {/* Always visible regardless of focus, which folder is highlighted, or
+          whether FolderPanel is collapsed — otherwise a pull/sync running on
+          a folder you've since navigated away from (or can't currently see
+          a row for at all, collapsed) leaves no trace anywhere that
+          anything is happening. FolderRowPullSpinner (FolderPanel) and the
+          Log panel's own spinner line are both scoped to one folder each
+          (the row it's on / whichever folder is currently highlighted);
+          this one isn't scoped to anything, just a plain count. */}
+      {pullingCount > 0 && (
+        <Box marginRight={1}>
+          <Spinner />
+          <Text color="yellow" bold>{pullingCount} pulling</Text>
+          <Text color="gray">  </Text>
+        </Box>
+      )}
       {actions.map((a, i) => (
         <Box key={a.key + a.desc} marginRight={1}>
           <Text color={a.active ? 'cyan' : 'gray'}>
@@ -1316,7 +1331,7 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} bindings={bindings} pulling={isCurrentFolderPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} />
+      <Footer focus={focus} bindings={bindings} pulling={isCurrentFolderPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} pullingCount={pullingFolderNames.size} />
     </Box>
   );
 }
