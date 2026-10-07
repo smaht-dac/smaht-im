@@ -1016,6 +1016,12 @@ export function syncFolderAsync(folderName, onLine, onDone) {
  * cancel): { success, killed, ranCount, totalCount, failedQuery, diff }.
  * Returns { kill() } — kills whichever query is currently in flight; the
  * batch stops there (no further queries run).
+ *
+ * The very first onQuery/onLine call is deferred one microtask tick (see
+ * below) specifically so callers can set up their own pull-tracking state
+ * (App.jsx's startPull, which creates the pullStates entry those calls
+ * write into) after calling this function but before any callback fires —
+ * every caller here does exactly that (call this, then pushLog/startPull).
  */
 export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLine, onDone) {
   const list = (queries ?? []).map(q => q?.trim()).filter(Boolean);
@@ -1051,7 +1057,12 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
     currentKill = kill;
   };
 
-  runAt(0);
+  // Deferred one microtask tick — see docstring above. Only the FIRST call
+  // needs this: every call after it already happens from inside a spawned
+  // child's event callback (runAt(i+1) above), which is inherently async,
+  // so only runAt(0) can possibly fire before the caller's own synchronous
+  // setup code (right after calling this function) has finished running.
+  queueMicrotask(() => runAt(0));
   return { kill: () => currentKill() };
 }
 
