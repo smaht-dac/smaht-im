@@ -657,3 +657,9 @@ branch.
   branches/                     — named branches (temp-local-inserts-<slug>/), see "How it works"
   backups/                      — pre-sync/restore snapshots, browsable via imc's History (`H`)
 ```
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE).

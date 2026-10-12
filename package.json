@@ -2,6 +2,7 @@
   "name": "smaht-im",
   "version": "0.2.0",
   "description": "SMaHT Inserts Manager — TUI and CLI tools for smaht-portal inserts",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
