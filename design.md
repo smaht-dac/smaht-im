@@ -15,20 +15,15 @@ each idea would actually land.
 
 ### Navigation & discovery
 
-- **No search or filter anywhere.** The Folders, Types, and Items panels
-  (`Panels.jsx`) only support `j`/`k` / arrow-key scrolling via
-  `visibleWindow()`. Once a folder has a few dozen branches or a type has a
-  few hundred items, finding a specific one means scrolling past everything
-  else. There's no `/`-to-filter, no jump-to-letter, no type-ahead.
-- **No way to find a UUID across folders.** If you know a UUID and want to
-  know which `temp-local-inserts-*` folder and type it lives in, there's no
-  search — you'd have to open each folder/type by hand or grep the repo from
-  a separate terminal.
-- **No item detail view.** `ItemsPanel` shows only `uuid` / `displayId` /
-  `status` (three fixed columns). The full JSON record (`item.data` is
-  already loaded in memory via `loadFolder()`) is never shown — there's no
-  "press Enter to inspect" to see the rest of the fields before deciding to
-  move, sync, or delete something.
+- **No per-panel type-ahead filter.** The Folders, Types, and Items panels
+  (`Panels.jsx`) still only support `j`/`k` / arrow-key scrolling via
+  `visibleWindow()` for in-panel navigation. Once a folder has a few dozen
+  branches or a type has a few hundred items, narrowing *that list* means
+  scrolling past everything else — there's no jump-to-letter or live filter
+  on folder/type/item name within a panel. (Finding a known UUID across every
+  folder is a solved, separate problem now — see `/` in `CLAUDE.md`'s
+  "Search" section — this bullet is specifically about filtering the list
+  you're already looking at.)
 - **Base-branch picker in `NewFolderModal` doesn't scale.** It's a
   left/right arrow slider over `baseOpts` — fine for a handful of folders,
   unwieldy once there are 15+.
@@ -68,23 +63,19 @@ each idea would actually land.
 
 ### Pull / query workflow (imc vs. `im.py`)
 
-- **`NewFolderModal`'s pull is a single free-text query, one shot.**
-  `im.py`'s `pull` command supports multiple `--type` flags, `--uuid`,
-  `--uuid-file`, and per-type manifest bookkeeping. `handleCreateFolder` /
-  `pullFolderAsync` in the TUI only support one combined `--search` string
-  with one env — there's no type-aware query builder, autocomplete of
-  known type names, or validation that the query string is well-formed.
-- **Folders created via "New Folder + pull" don't get tracking metadata
-  saved.** Walk `handleCreateFolder` in `App.jsx`: after a successful pull
-  it calls `syncWorkingCopyToFolder(newName)` but never calls
-  `saveBranchMeta()`. Compare with `handleSetQuery`, which does save
-  `__tracking__`. Net effect: a folder you just freshly pulled shows `?`
-  (untracked) in the remote-status column until you separately press `t`
-  and re-enter the same query you just typed seconds ago.
+- **`NewFolderModal`'s pull is still free-text, not type-aware.** It now
+  supports queuing several queries in one batch before creating the folder
+  (chip-input, same UX `PullMoreModal` uses — see `CLAUDE.md`'s "Seeding a
+  new folder from several queries"), so "one shot" is no longer accurate.
+  What's still missing: there's no autocomplete of known type names and no
+  validation that a query string is well-formed before it's sent — each
+  queued entry is still hand-typed free text.
 - **No "coverage" view inside imc.** `im coverage --show-missing` (CLI)
   answers "what am I missing locally vs. the portal" per type, but imc's
-  remote tracking only reports UUID-set deltas as counts (`↓N↑M`) — you
-  can't see *which* UUIDs, or drill in, without dropping to the CLI.
+  remote tracking only ever surfaces the `behind` count (`↓N`) in the
+  Folders panel — `ahead` is computed too but deliberately never shown (see
+  `CLAUDE.md`'s "Indicator column" note on why), and neither path lets you
+  see *which* UUIDs are missing, or drill in, without dropping to the CLI.
 - **Env list is duplicated and hardcoded.** `ENVS` in `Modals.jsx`
   (`NewFolderModal`) and `TRACKING_ENVS` (`SetQueryModal`) are two separate
   arrays with the same four values — adding a fifth environment means
@@ -94,7 +85,7 @@ each idea would actually land.
 
 - **5-minute cache TTL is fixed and invisible.** `checkRemoteAsync`'s cache
   in `__remote_cache__` isn't surfaced anywhere in the UI — there's no way
-  to tell "this ↓3↑1 is 4 minutes stale" vs. force a re-check without
+  to tell "this `↓3` is 4 minutes stale" vs. force a re-check without
   waiting or doing an action that happens to trigger one.
 - **No credential health check.** If `~/.smaht-keys.json` is missing an
   entry for an env, you only find out when a sync/pull/tracking check fails
@@ -114,25 +105,15 @@ each idea would actually land.
   tells the user *why* a new `temp-local-inserts-20260814-1032` folder just
   appeared in their list. It's a genuinely useful safety net, but it reads
   as unexplained TUI behavior on first encounter.
-- **No cancel for an in-flight pull.** `pullFolderAsync` spawns
-  `update-inserts-from-server` and only resolves on process close — if a
-  query is wrong or the portal is slow, there's no way to abort from the
-  TUI short of quitting the whole app (which likely leaves an orphaned
-  child process and a half-created folder).
-- **Error log is capped and ephemeral within the session.** `errorLog`
-  lives in React state only (`useState([])`) and is capped at the last 50
-  entries with no persistence — closing imc loses the history, and there's
-  no "copy full error" or "open in $EDITOR" for a long stack trace that got
-  truncated by `trunc(e, 116)`.
+- **Error log excerpts can still get truncated mid-line.** `F`
+  (`FullLogModal`) now reads the persistent on-disk log (`~/.smaht-im/imc.log`,
+  last 500 lines, survives restarts) so the "closing imc loses the history"
+  half of this is fixed — but the in-app `L` view is still the capped
+  50-entry session `errorLog`, and a long stack trace shown inline is still
+  `trunc(e, 116)`'d with no "open in $EDITOR" for the full text either way.
 
 ### Engineering / quality
 
-- **No automated tests.** `package.json` has no test script and no test
-  framework dependency. `core.js` is explicitly documented as "pure
-  functions, no state" (per `CLAUDE.md`) — an ideal candidate for unit
-  tests — but the safety-critical `INSERT_PREFIX` guards, `moveItems`
-  merge/skip logic, and `computeDiff` set math are all currently verified
-  only by hand.
 - **No linter/formatter config** visible in the repo — style consistency
   across `src/*.jsx` relies on convention only.
 
@@ -150,13 +131,6 @@ the existing architecture.
   displayId/status). Fits naturally alongside the existing `useInput` guards
   in `Panels.jsx`; would need a small `filterText` state per panel or lifted
   into `App.jsx` next to `focus`.
-- **Global "find UUID" command.** A modal (`Ctrl+F`?) that greps across all
-  loaded folders' `items` arrays (already fully in memory after
-  `loadAllFolders()`) and jumps the cursor straight to the matching
-  folder/type/item.
-- **Item detail modal.** Enter on a highlighted item opens a scrollable
-  pretty-printed view of `item.data` (the full record is already there,
-  just not rendered) — useful before deciding to move/sync/delete.
 - **Type-to-filter in `NewFolderModal`'s base-branch picker** once folder
   count grows past a screenful, instead of the current left/right slider.
 
@@ -175,30 +149,6 @@ the existing architecture.
 - **Copy mode for items**, alongside the existing Move. Same modal, an
   extra keybinding or a toggle in `MoveModal` (`c` = copy, `m` = move) that
   skips the `remaining` filter/`unlinkSync` step in `moveItems()`.
-- **De-identified export for sharing.** Inserts pull real donor/sample/
-  tissue records from the portal — not safe to hand over as-is for a bug
-  report, a support ticket, or example data. Prototyped as
-  `scripts/anonymize-inserts.js`: reads a `temp-local-inserts*` folder,
-  remaps every UUID consistently across all type files (so
-  `sample.donor === donor.uuid` still resolves after anonymization),
-  scrubs/fakes name-matched identifying fields, jitters dates, and does a
-  real Fisher-Yates *shuffle* of quasi-identifier columns (age, sex, race,
-  cause of death, etc.) across records of the same type — same aggregate
-  distribution, broken row-level pairing. Groups smaller than 5 are
-  redacted instead of shuffled rather than silently "protected" by
-  permuting 2-3 values. `--seed` makes it fully reproducible; a
-  `_ANONYMIZATION_REPORT.json` documents exactly what happened to each
-  field, for review before anything goes out.
-  **Important limits, not solved by this script:** it only touches the
-  JSON insert records — any referenced sequence/genotype files need
-  separate handling and are not de-identified here. Small cohorts remain
-  re-identifiable to someone who already knows something about them, no
-  matter how the fields are shuffled — genomic/phenotypic data is
-  inherently higher-risk than typical tabular PII. The default field-name
-  policy is a generic guess and needs to be reviewed against the real
-  SMaHT schema before anyone trusts it. This is engineering hardening, not
-  a substitute for going through Harvard/SMaHT data governance (DUA, DAC
-  approval, IRB) before sharing real donor-derived data outside the team.
 - **Bulk item delete.** A `DeleteItemsModal` mirroring `DeleteModal`'s
   confirm pattern, operating on `selectedUuids` within the current type —
   currently the only way to remove items is to move them somewhere and
@@ -219,22 +169,17 @@ the existing architecture.
 
 ### Pull / query workflow
 
-- **Type-aware query builder in `NewFolderModal`.** Let the user pick one
-  or more known types (autocompleted from existing folders' type names)
-  plus an optional filter, and compose the underlying `--search` query
-  automatically instead of hand-writing `?type=Donor&status=released`.
-- **Fix the tracking-metadata gap on create.** In `handleCreateFolder`,
-  call `saveBranchMeta(newName, { [primaryType]: { env, query, count,
-  last_pulled } })` (or a `__tracking__` entry) right after a successful
-  pull, so a freshly created folder shows its real remote status instead of
-  `?` until someone manually re-sets the same query via `t`.
+- **Type-aware query builder in `NewFolderModal`.** The chip-input batch
+  (type a query, Enter to queue another) already shipped — see "Pain
+  points" above — but each entry is still hand-written free text. Let the
+  user pick one or more known types (autocompleted from existing folders'
+  type names) plus an optional filter, and compose the underlying
+  `--search` query automatically instead of hand-writing
+  `?type=Donor&status=released`.
 - **`im coverage`-style drill-down in imc.** Add a "show missing UUIDs" view
   off the remote-status indicator — reuse the existing UUID-set diff logic
   in `checkRemoteAsync` but surface the actual missing/extra UUID lists
   (with `displayId`) instead of just counts.
-- **Cancel button for in-flight pulls.** Track the `child` process handle
-  from `pullFolderAsync` in state and expose a keybinding to `child.kill()`
-  plus cleanup of the partially-created folder.
 - **Single source of truth for env list.** Move `ENVS` /
   `TRACKING_ENVS` into `core.js` (or a small `envs.js`) read once, ideally
   backed by `~/.smaht-keys.json`'s actual keys so the env picker only shows
@@ -242,7 +187,7 @@ the existing architecture.
 
 ### Remote tracking
 
-- **Surface cache age.** Show "checked 3m ago" next to the `✓`/`↓N↑M`
+- **Surface cache age.** Show "checked 3m ago" next to the `✓`/`↓N`
   indicator, sourced from `__remote_cache__.checked_at`, plus a manual
   "force re-check" keybinding that bypasses the 5-minute TTL.
 - **Credentials health screen.** A small modal listing each env in
@@ -268,18 +213,10 @@ the existing architecture.
 
 ### Engineering / quality
 
-- **Unit tests for `core.js`.** It's pure, synchronous, and already
-  side-effect-isolated per the project's own architecture notes — a strong
-  candidate for a fast test suite (Node's built-in `node:test` would avoid
-  adding a new dependency) covering the `INSERT_PREFIX` guards,
-  `moveItems` dedup/skip logic, and `computeDiff` set math specifically,
-  since those are the safety-critical paths called out in `CLAUDE.md`.
 - **Lint/format config** (eslint + prettier, or biome) to keep `src/*.jsx`
-  consistent as the TUI grows.
-- **Error log persistence.** Write `errorLog` entries to a rotating file
-  under `~/.smaht-im/` (e.g. `error.log`) in addition to the in-memory
-  capped array, so a long pull failure can be inspected after the fact
-  without truncation.
+  consistent as the TUI grows. (Unit tests and error-log persistence, both
+  listed here previously, have since shipped — see `CLAUDE.md`'s "Tests"
+  and "Error log persistence" sections.)
 
 ### Feature-aware insert recommendation (schema-driven)
 
@@ -363,11 +300,15 @@ recommend-inserts flow above — that's v1.1), running as a local web app
 against a thin server wrapping `core.js` (not a desktop app), styled as a
 dense internal power-tool rather than a consumer dashboard.
 
-Full prompt-ready spec — screen inventory mapped 1:1 from imc's panels and
-modals, synthetic sample content, and a states checklist — is in
+A prompt-ready spec was drafted — screen inventory mapped 1:1 from imc's
+panels and modals, synthetic sample content, and a states checklist — as
 `figma-ui-brief.md`, with the actual paste-ready First Draft prompt in
-`figma-first-draft-prompt.txt`. Notes worth keeping here since they're
-easy to forget once a Figma file exists:
+`figma-first-draft-prompt.txt`. **Neither file is in this repo** (kept out
+of version control deliberately, same reasoning as the removed
+`recommend-inserts.js` prototype above — not appropriate to ship while
+making this tool shareable with the team); check with whoever drafted them
+if you need the content again. Notes worth keeping here regardless, since
+they're easy to forget once a Figma file exists:
 
 - First Draft takes a text prompt only (no reference images) and is built
   for common web patterns — a three-panel data manager with custom status

@@ -169,6 +169,12 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 ```
 
 `●` marks the currently loaded folder (HEAD). `✓` marks items selected with Space.
+The rightmost column in Folders shows each folder's remote-tracking status:
+`~` checking, `?` untracked (no query set), `✓` nothing new on the portal,
+`↓N` N items available remotely but not local yet, `!` the last check errored.
+A folder actively pulling/syncing shows a live spinner there instead, and the
+footer shows an overall "N pulling" indicator whenever any folder has one in
+flight, regardless of which panel is focused.
 
 ### Key actions
 
@@ -179,12 +185,18 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
-| `n` | Folders | **New folder** — create a branch (optionally forked from an existing one) |
+| `n` | Folders | **New folder** — create a branch, optionally forked from an existing one and/or seeded by pulling one or more queries from the portal right away (chip-input: type a query, Enter to queue another, Enter on empty to create) |
 | `N` | Folders | **New empty folder** — same as `n`, but defaults the base to `(none)` |
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
+| `f` | Folders | **Sync** — re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
+| `t` | Folders | **Set tracking query** — pick an env + query for this folder to sync against (`f`) and check staleness with |
+| `A` | Folders | **Pull more** — queue one or more extra queries to pull into this folder without touching its stored tracking query |
+| `p` | Folders | **View pull output** — full scrollable log of the current/last pull for the highlighted folder (shown only while/just after one has run) |
+| `x` | Folders | **Cancel** an in-progress pull/sync for the highlighted folder |
+| `H` | Folders | **History** — browse and restore this folder's pre-sync/restore backups (newest first, up to 10 kept) |
 | `y` | Folders | **Copy** every item in the folder (or all selected folders, merged) to the clipboard as JSON (`{ typeName: [...] }`) |
 | `y` | Types | **Copy** every item in the highlighted type to the clipboard as a plain JSON array |
 | `E` | Types / Items | **Edit** the highlighted type's JSON file directly in `$EDITOR`/`$VISUAL` (falls back to `vi`), for hand-edits the app has no dedicated UI for (arbitrary interleaving, editing field values). Backs the folder up first (`H` to restore). If this folder is currently loaded, the edit is mirrored into the working copy immediately, so it isn't mistaken for an external edit and auto-snapshotted into a new folder next launch |
@@ -195,6 +207,7 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `y` | Items | **Copy** selected items (or the highlighted one) to the clipboard as JSON |
 | `v` | Items | **Range select** — mark the start here, move, press again to select every item in between |
 | `^A` (ctrl+a) | Items | Select all items in the current type |
+| `f` | Items | **Sync** — re-fetch just the highlighted item from the portal and replace it in place. Shows a field-level diff if anything changed |
 | `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right — closes when focus leaves Items |
 | `Tab` / `l` | Items | Move focus into the JSON tree panel (only while it's open) |
 | `↑↓` / `jk` | Item detail | Move within the JSON tree |
@@ -204,6 +217,8 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 | `Esc` | Items / Item detail | Clear item selection, or close the JSON tree panel |
 | `Tab` / `Shift+Tab` | Global | Move focus between panels |
 | `R` | Global | Refresh all folders from disk |
+| `L` | Global | Expand the session error log (clears on quit) |
+| `F` | Global | View the full on-disk log (`~/.smaht-im/imc.log`, survives restarts, last 500 lines) |
 | `K` | Global | Edit keybindings |
 | `?` | Global | Help screen |
 | `q` | Global | Quit |
@@ -267,10 +282,23 @@ Default keybindings:
 | Range select | `v` |
 | Toggle / load | `Space` |
 | Select all | `^A` (ctrl+a) |
+| Sync from portal | `f` |
+| Set tracking query | `t` |
+| Pull more (new query) | `A` |
+| View pull/sync output | `p` |
+| Cancel pull/sync | `x` |
+| View folder backup history | `H` |
 | Refresh | `R` |
+| Expand error log | `L` |
+| View full log file | `F` |
 | Edit keybindings | `K` |
 | Help | `?` |
 | Quit | `q` |
+
+A few keys are fixed and don't go through this rebindable system at all, so
+they're not in the editor or the table above: `a`/`b` to reorder selected
+items (Items panel), and `Enter`/`Space`/`c`/`z`/arrows/`j`/`k` inside the
+item JSON detail view.
 
 ---
 
