@@ -1,4 +1,4 @@
-# smaht-im — SMaHT Inserts Manager
+# smaht-im - SMaHT Inserts Manager
 
 Two tools for managing smaht-portal inserts during local development:
 
@@ -7,7 +7,7 @@ Two tools for managing smaht-portal inserts during local development:
 | `im` | Command-line tool: pull, track, diff, and repull inserts |
 | `imc` | **TUI** (lazygit-style): browse folders, load, snapshot, move items |
 
-All state (manifests, activation history) is stored in `~/.smaht-im/` — never
+All state (manifests, activation history) is stored in `~/.smaht-im/` - never
 committed to the portal repo.
 
 > **Before you pull anything:** data pulled from a live portal environment is
@@ -53,14 +53,14 @@ Once all of that's in place: `imc` for the TUI, or `im --help` for the CLI. Each
 
 ## How it works
 
-Both tools operate on the inserts directory inside your local smaht-portal checkout —
+Both tools operate on the inserts directory inside your local smaht-portal checkout -
 but only the working copy and real portal fixtures live there. Named branches live
 outside the checkout entirely, in imc's own state directory:
 
 ```
 ~/dbmi/smaht-portal/src/encoded/tests/data/
-  ├── master-inserts/             ← live portal data — never touched
-  ├── workbook-inserts/           ← live portal data — never touched
+  ├── master-inserts/             ← live portal data - never touched
+  ├── workbook-inserts/           ← live portal data - never touched
   └── temp-local-inserts/         ← working copy (what portal loads)
 
 ~/.smaht-im/branches/
@@ -71,15 +71,15 @@ outside the checkout entirely, in imc's own state directory:
 
 Branches used to live alongside the working copy inside the portal checkout; they were
 moved out since imc is the only thing that ever reads them (the portal itself only ever
-reads the working copy) — keeping them outside the checkout means a branch operation can
+reads the working copy) - keeping them outside the checkout means a branch operation can
 never accidentally touch a real fixture like `master-inserts`. Every keybinding and
-workflow described below is unchanged either way — only where things physically live
+workflow described below is unchanged either way - only where things physically live
 moved.
 
 ### The branch model
 
 `imc` manages inserts folders like git branches. `temp-local-inserts/` is the
-**working copy** — the folder smaht-portal reads. Named folders
+**working copy** - the folder smaht-portal reads. Named folders
 (`temp-local-inserts-<name>/`) are branches you switch between, stored in
 `~/.smaht-im/branches/`.
 
@@ -96,7 +96,7 @@ temp-local-inserts-main
         │
         │  [a] or Space (in Folders panel)
         ▼
-temp-local-inserts  (working copy — portal reads this)
+temp-local-inserts  (working copy - portal reads this)
         │
         │  im pull --type Tissue   (fetch new items from remote)
         │
@@ -144,7 +144,7 @@ temp-local-inserts-devtest -- [d] diff --> side-by-side count table vs temp-loca
 
 ---
 
-## imc — Inserts Manager TUI
+## imc - Inserts Manager TUI
 
 A lazygit-inspired full-terminal UI for browsing and managing all
 `temp-local-inserts*` folders in the smaht-portal data directory.
@@ -182,33 +182,33 @@ flight, regardless of which panel is focused.
 |-----|-------|--------|
 | `o` | Global | **Toggle** the Folders panel between full width and a narrow strip showing just this key, bracketed (e.g. `[o]`). Auto-collapses the instant focus leaves Folders; only re-expands via this key or `Enter` while focused there (or automatically right after creating a new folder) |
 | `/` | Global | **Find** an item by uuid (or part of one) across every folder, shows a live result list (`↑↓` to move, `Enter` to jump to it, opening its JSON detail view), marking which results are in the currently loaded folder. Built for pasting a uuid straight out of a `make deploy1`/`deploy2` validation failure in smaht-portal |
-| `a` | Folders | **Load** selected folder — replaces `temp-local-inserts` contents, updates HEAD |
+| `a` | Folders | **Load** selected folder - replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
-| `s` | Folders | **Snapshot** — copy working copy to a named `temp-local-inserts-<name>` |
-| `n` | Folders | **New folder** — create a branch, optionally forked from an existing one and/or seeded by pulling one or more queries from the portal right away (chip-input: type a query, Enter to queue another, Enter on empty to create) |
-| `N` | Folders | **New empty folder** — same as `n`, but defaults the base to `(none)` |
+| `s` | Folders | **Snapshot** - copy working copy to a named `temp-local-inserts-<name>` |
+| `n` | Folders | **New folder** - create a branch, optionally forked from an existing one and/or seeded by pulling one or more queries from the portal right away (chip-input: type a query, Enter to queue another, Enter on empty to create) |
+| `N` | Folders | **New empty folder** - same as `n`, but defaults the base to `(none)` |
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
-| `f` | Folders | **Sync** — re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
-| `t` | Folders | **Set tracking query** — pick an env + query for this folder to sync against (`f`) and check staleness with |
-| `A` | Folders | **Pull more** — queue one or more extra queries to pull into this folder without touching its stored tracking query |
-| `p` | Folders | **View pull output** — full scrollable log of the current/last pull for the highlighted folder (shown only while/just after one has run) |
+| `f` | Folders | **Sync** - re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
+| `t` | Folders | **Set tracking query** - pick an env + query for this folder to sync against (`f`) and check staleness with |
+| `A` | Folders | **Pull more** - queue one or more extra queries to pull into this folder without touching its stored tracking query |
+| `p` | Folders | **View pull output** - full scrollable log of the current/last pull for the highlighted folder (shown only while/just after one has run) |
 | `x` | Folders | **Cancel** an in-progress pull/sync for the highlighted folder |
-| `H` | Folders | **History** — browse and restore this folder's pre-sync/restore backups (newest first, up to 10 kept) |
+| `H` | Folders | **History** - browse and restore this folder's pre-sync/restore backups (newest first, up to 10 kept) |
 | `y` | Folders | **Copy** every item in the folder (or all selected folders, merged) to the clipboard as JSON (`{ typeName: [...] }`) |
 | `y` | Types | **Copy** every item in the highlighted type to the clipboard as a plain JSON array |
 | `E` | Types / Items | **Edit** the highlighted type's JSON file directly in `$EDITOR`/`$VISUAL` (falls back to `vi`), for hand-edits the app has no dedicated UI for (arbitrary interleaving, editing field values). Backs the folder up first (`H` to restore). If this folder is currently loaded, the edit is mirrored into the working copy immediately, so it isn't mistaken for an external edit and auto-snapshotted into a new folder next launch |
-| `v` | Folders | **Range select** — mark the start here, move, press again to select every folder in between |
+| `v` | Folders | **Range select** - mark the start here, move, press again to select every folder in between |
 | `Space` | Items | Toggle item selection (multi-select) |
 | `m` | Items | **Move** selected items to another folder |
-| `a` / `b` | Items | **Reorder** — move selected items to right after / before the highlighted (unselected) item, same type file. Useful when one insert references another by UUID and the referenced item needs to load first (e.g. `unaligned_reads`' `R2` entries needing to come after their `R1`) |
+| `a` / `b` | Items | **Reorder** - move selected items to right after / before the highlighted (unselected) item, same type file. Useful when one insert references another by UUID and the referenced item needs to load first (e.g. `unaligned_reads`' `R2` entries needing to come after their `R1`) |
 | `y` | Items | **Copy** selected items (or the highlighted one) to the clipboard as JSON |
-| `v` | Items | **Range select** — mark the start here, move, press again to select every item in between |
+| `v` | Items | **Range select** - mark the start here, move, press again to select every item in between |
 | `^A` (ctrl+a) | Items | Select all items in the current type |
-| `f` | Items | **Sync** — re-fetch just the highlighted item from the portal and replace it in place. Shows a field-level diff if anything changed |
-| `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right — closes when focus leaves Items |
+| `f` | Items | **Sync** - re-fetch just the highlighted item from the portal and replace it in place. Shows a field-level diff if anything changed |
+| `Enter` | Items | View highlighted item as a collapsible JSON tree in a panel on the right - closes when focus leaves Items |
 | `Tab` / `l` | Items | Move focus into the JSON tree panel (only while it's open) |
 | `↑↓` / `jk` | Item detail | Move within the JSON tree |
 | `Enter` / `Space` | Item detail | Expand / collapse the highlighted node |
@@ -254,11 +254,11 @@ editor, or edit `~/.smaht-im/keybindings.json` directly.
     ...                              ← press s to save & close, Esc to cancel
 ```
 
-The editor prevents collisions — if a key is already in use, it rejects the
+The editor prevents collisions - if a key is already in use, it rejects the
 new binding and shows which action owns it. Reserved keys (Esc, Enter, Tab,
 arrow keys) can never be bound.
 
-Space is context-aware and cannot be separately configured per panel — whatever
+Space is context-aware and cannot be separately configured per panel - whatever
 key is bound to "Toggle / load" acts as the load shortcut in the Folders panel
 and the selection toggle in the Items panel.
 
@@ -329,7 +329,7 @@ npm run dev
 
 ---
 
-## im — CLI tool
+## im - CLI tool
 
 ### Prerequisites
 
@@ -362,7 +362,7 @@ ls ~/.smaht-keys.json
 ### 1. Check out the script
 
 The script lives at `~/smaht-im/im.py`. If you need to restore it from
-scratch, copy it from wherever you keep it — it is a single self-contained
+scratch, copy it from wherever you keep it - it is a single self-contained
 Python file.
 
 ### 2. Add the alias to your shell profile
@@ -399,7 +399,7 @@ found walking up from the current directory. The smaht-portal repo has
 `smaht311` in its `.python-version`, so `python` resolves correctly when you
 are inside that directory tree.
 
-Outside it — running `im` from `~`, `/tmp`, or any other directory — pyenv
+Outside it - running `im` from `~`, `/tmp`, or any other directory - pyenv
 falls back to the global version, which may not have `python` defined at all,
 producing:
 
@@ -417,7 +417,7 @@ invocation, regardless of where you are.
 All commands accept `--help` for a full option list.
 
 > **Don't pass a `temp-local-inserts-<slug>` name to `--dir`.** `im`'s `--dir`
-> always writes inside the portal checkout — it has no way to reach
+> always writes inside the portal checkout - it has no way to reach
 > `~/.smaht-im/branches/`, where `imc` actually stores its named branches now.
 > Using `--dir donor-only` (a plain name, like the examples below) is fine;
 > using `--dir temp-local-inserts-devtest` will silently create a second,
@@ -577,17 +577,17 @@ PYENV_VERSION=smaht311 pip install click requests
 ## Sharing inserts data safely
 
 Inserts pulled by `im pull` are real donor/sample/tissue records from the
-portal — not safe to paste into a bug report, attach to a ticket, or use as
+portal - not safe to paste into a bug report, attach to a ticket, or use as
 example data as-is.
 
 There are two equivalent ways to produce a de-identified copy of a
-`temp-local-inserts*` folder — same underlying implementation
+`temp-local-inserts*` folder - same underlying implementation
 (`anonymizeFolder()` in `src/core.js`), pick whichever is more convenient.
-**Neither runs automatically** — both require you to explicitly ask for it.
+**Neither runs automatically** - both require you to explicitly ask for it.
 
 **From imc:** highlight a folder in the Folders panel and press `e`
 (Export de-identified copy). You'll be prompted for an export name and an
-optional seed, then the result is written to `~/smaht-im-exports/` — the
+optional seed, then the result is written to `~/smaht-im-exports/` - the
 working copy and every other folder are left untouched, and nothing is
 re-pulled, re-synced, or refreshed as a side effect.
 
@@ -603,12 +603,12 @@ What it does:
   so links like `sample.donor -> donor.uuid` still resolve after
   anonymizing.
 - Scrubs or fakes fields matched by name (`submitted_id`, `notes`,
-  `accession`, etc. — see `DEFAULT_POLICY` in the script, or override with
+  `accession`, etc. - see `DEFAULT_POLICY` in the script, or override with
   `--config=path/to/config.json`, starting from
   `scripts/anonymize.config.example.json`).
 - Jitters date fields by a random +/- N days (`--jitter-days`, default 30).
 - **Shuffles** quasi-identifier columns (age, sex, race, cause of death,
-  etc.) across records of the same type — a real permutation of the
+  etc.) across records of the same type - a real permutation of the
   existing values, not fake data, so the aggregate distribution for that
   type is unchanged but which value belongs to which record is broken.
   Groups smaller than 5 records are redacted instead of shuffled, since
@@ -618,16 +618,16 @@ What it does:
 - Pass `--seed=<phrase>` for a fully reproducible run (same input + seed →
   same output); omit it for a fresh random remap.
 
-Output goes to `~/smaht-im-exports/` by default — outside the portal's
+Output goes to `~/smaht-im-exports/` by default - outside the portal's
 inserts directory, so it's never mistaken for a working `temp-local-inserts*`
 branch.
 
-**Limits — read before sharing anything:**
+**Limits - read before sharing anything:**
 
 - Only the JSON insert records are touched. Any sequence/genotype files
   referenced by these records are not de-identified by this script.
 - Small cohorts stay re-identifiable to someone who already knows something
-  about them, regardless of shuffling — this reduces risk, it doesn't
+  about them, regardless of shuffling - this reduces risk, it doesn't
   guarantee anonymity.
 - The default field-name policy is a generic guess. Review and extend it
   against the real SMaHT schema (`--config`) before trusting it.
@@ -642,20 +642,20 @@ branch.
 
 ```
 ~/smaht-im/
-  im.py        — Python CLI (im)
-  src/         — Node.js TUI source (imc)
-  dist/        — built output (imc.js) — generated, not committed
-  README.md    — this file
+  im.py        - Python CLI (im)
+  src/         - Node.js TUI source (imc)
+  dist/        - built output (imc.js) - generated, not committed
+  README.md    - this file
 
 ~/.smaht-im/
-  HEAD                          — currently loaded folder name
-  activation-history.json       — log of every load operation
-  keybindings.json              — custom key bindings (optional)
-  temp-local-inserts.json       — manifest per workspace
+  HEAD                          - currently loaded folder name
+  activation-history.json       - log of every load operation
+  keybindings.json              - custom key bindings (optional)
+  temp-local-inserts.json       - manifest per workspace
   my-workspace.json
   ...
-  branches/                     — named branches (temp-local-inserts-<slug>/), see "How it works"
-  backups/                      — pre-sync/restore snapshots, browsable via imc's History (`H`)
+  branches/                     - named branches (temp-local-inserts-<slug>/), see "How it works"
+  backups/                      - pre-sync/restore snapshots, browsable via imc's History (`H`)
 ```
 
 ---
