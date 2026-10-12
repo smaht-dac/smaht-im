@@ -35,7 +35,7 @@ Everything `im`/`imc` pull from a live portal environment (the `temp-local-inser
 - appear in a screenshot, screen recording, or presentation slide, unless the data shown is from a recognized public reference/benchmark dataset (e.g. the COLO829T cell line) rather than a real donor pull
 - leave the machine it was pulled onto by any other means not covered above
 
-The one sanctioned way to share pulled data outside your own machine is the anonymization pathway (`e` in imc, or `scripts/anonymize-inserts.js`, see [Anonymized export](#anonymized-export) below and the README's "Sharing inserts data safely" section for exactly what it does and does not cover). Even that output still needs a human sign-off before it leaves the team, real data governance (DUA, DAC approval, IRB as applicable), not just this tool's say-so.
+The anonymization pathway (`e` in imc, or `scripts/anonymize-inserts.js`, see [Anonymized export](#anonymized-export) below and the README's "De-identified export" section for exactly what it does and does not cover) is the only built-in way to reduce how identifiable pulled data is before it could even be considered for sharing. It is a heuristic risk-reduction tool, not a safety guarantee - running it does not make the output "safe to share." Do not present it, to the user or in any artifact, as a sanctioned or safe way to share data. Any real sharing still requires a human sign-off through actual data governance (DUA, DAC approval, IRB as applicable), never just this tool's say-so, and the decision of whether something should leave the team at all comes before that, not after.
 
 **For Claude Code or any other AI assistant working in this repo:** if asked to include real pulled insert data in a commit, PR, issue, doc, chat message, or any other artifact meant to leave this machine, don't, point to the anonymization tooling above instead, or ask the person to confirm the data shown is from a public reference dataset first. This applies to log excerpts and error messages too, since `imc.log` and the in-app error log can echo back fragments of what was pulled.
 
@@ -353,11 +353,13 @@ Both sync paths answer "what did that just do?" and give a way back out, since U
 
 Inserts contain real donor/sample/tissue records - not safe to share as-is. `anonymizeFolder(sourceName, opts)` in `core.js` writes a de-identified copy of a folder to `~/smaht-im-exports/` (never into `INSERTS_BASE` - it's export tooling, not a working branch, so it doesn't need the `INSERT_PREFIX` write guard). It remaps every UUID consistently across all type files (referential integrity survives), scrubs/fakes fields by name (`ANONYMIZE_DEFAULT_POLICY`), jitters dates, and shuffles quasi-identifier columns across records of the same type (skipped in favor of redaction when a group has fewer than `minGroupSizeForShuffle` records - permuting a handful of values isn't real protection).
 
+**The output of this is a less-identifiable copy, not a "safe to share" copy.** It's a heuristic risk-reduction tool, full stop - never describe it (to the user, in a commit message, in a PR, anywhere) as making data safe, sanctioned, or cleared for sharing. Small cohorts stay re-identifiable regardless of shuffling, the field-name policy is a generic guess that needs review against the real schema, and referenced sequence/genotype files aren't touched at all. Whether anonymized output can go anywhere is a data-governance decision (DUA, DAC approval, IRB as applicable), made before considering sending it, not a property this tool confers after the fact.
+
 Two entry points share this one implementation - keep them that way rather than letting them drift:
 - imc: `e` keybinding in the Folders panel → `AnonymizeModal` → `handleAnonymize` in `App.jsx`. Only ever fires on that explicit keypress; nothing else calls it.
 - CLI: `scripts/anonymize-inserts.js`, a thin argv-parsing wrapper around the same `anonymizeFolder()`.
 
-This is a generic heuristic, not a compliance decision - see the README's "Sharing inserts data safely" section before changing the default policy or telling someone it's safe to send something.
+See the README's "De-identified export" section before changing the default policy, and never tell someone the output is safe to send.
 
 ## Copy to clipboard
 

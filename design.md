@@ -6,7 +6,7 @@ triaged into real work. Add to it freely; prune once something ships or gets
 rejected.
 
 Grounded in the code as of the `App.jsx`/`core.js`/`Panels.jsx`/`Modals.jsx`
-split described in `CLAUDE.md`. File/function references below point at where
+split described in `AGENTS.md`. File/function references below point at where
 each idea would actually land.
 
 ---
@@ -21,7 +21,7 @@ each idea would actually land.
   branches or a type has a few hundred items, narrowing *that list* means
   scrolling past everything else - there's no jump-to-letter or live filter
   on folder/type/item name within a panel. (Finding a known UUID across every
-  folder is a solved, separate problem now - see `/` in `CLAUDE.md`'s
+  folder is a solved, separate problem now - see `/` in `AGENTS.md`'s
   "Search" section - this bullet is specifically about filtering the list
   you're already looking at.)
 - **Base-branch picker in `NewFolderModal` doesn't scale.** It's a
@@ -65,7 +65,7 @@ each idea would actually land.
 
 - **`NewFolderModal`'s pull is still free-text, not type-aware.** It now
   supports queuing several queries in one batch before creating the folder
-  (chip-input, same UX `PullMoreModal` uses - see `CLAUDE.md`'s "Seeding a
+  (chip-input, same UX `PullMoreModal` uses - see `AGENTS.md`'s "Seeding a
   new folder from several queries"), so "one shot" is no longer accurate.
   What's still missing: there's no autocomplete of known type names and no
   validation that a query string is well-formed before it's sent - each
@@ -74,7 +74,7 @@ each idea would actually land.
   answers "what am I missing locally vs. the portal" per type, but imc's
   remote tracking only ever surfaces the `behind` count (`↓N`) in the
   Folders panel - `ahead` is computed too but deliberately never shown (see
-  `CLAUDE.md`'s "Indicator column" note on why), and neither path lets you
+  `AGENTS.md`'s "Indicator column" note on why), and neither path lets you
   see *which* UUIDs are missing, or drill in, without dropping to the CLI.
 - **Env list is duplicated and hardcoded.** `ENVS` in `Modals.jsx`
   (`NewFolderModal`) and `TRACKING_ENVS` (`SetQueryModal`) are two separate
@@ -215,7 +215,7 @@ the existing architecture.
 
 - **Lint/format config** (eslint + prettier, or biome) to keep `src/*.jsx`
   consistent as the TUI grows. (Unit tests and error-log persistence, both
-  listed here previously, have since shipped - see `CLAUDE.md`'s "Tests"
+  listed here previously, have since shipped - see `AGENTS.md`'s "Tests"
   and "Error log persistence" sections.)
 
 ### Feature-aware insert recommendation (schema-driven)
@@ -342,5 +342,5 @@ they're easy to forget once a Figma file exists:
   more moving parts).
 - Insert recommendation: CLI (`im recommend`) vs. imc modal - CLI reuses
   Python's existing portal-query code, imc keeps momentum in the "active
-  focus" tool per `CLAUDE.md`. Needs a call before building past the
+  focus" tool per `AGENTS.md`. Needs a call before building past the
   read-only prototype.

@@ -15,10 +15,12 @@ committed to the portal repo.
 > anonymous test fixture, even when nothing in it looks obviously sensitive.
 > Keep it local. Don't commit it, paste it into an issue/PR/chat, upload it
 > anywhere, or include it in a screenshot, unless it's a recognized public
-> reference dataset (e.g. COLO829T) or has gone through the anonymization
-> step described in [Sharing inserts data safely](#sharing-inserts-data-safely)
-> below, and even then, real sharing still needs sign-off through actual data
-> governance, not just this tool's say-so.
+> reference dataset (e.g. COLO829T). The [de-identified export](#de-identified-export)
+> tool described below can reduce how identifiable a copy is, but running it
+> does not make the result "safe to share" - it's a heuristic, not a
+> guarantee, and it is never a substitute for actual data governance (DUA,
+> DAC approval, IRB as applicable) or for your own judgment about whether
+> something should leave the team at all.
 
 ---
 
@@ -190,7 +192,7 @@ flight, regardless of which panel is focused.
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
-| `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` (see [Sharing inserts data safely](#sharing-inserts-data-safely)) |
+| `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` - reduces identifiability, does not make the result safe to share (see [De-identified export](#de-identified-export)) |
 | `f` | Folders | **Sync** - re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
 | `t` | Folders | **Set tracking query** - pick an env + query for this folder to sync against (`f`) and check staleness with |
 | `A` | Folders | **Pull more** - queue one or more extra queries to pull into this folder without touching its stored tracking query |
@@ -574,11 +576,18 @@ PYENV_VERSION=smaht311 pip install click requests
 
 ---
 
-## Sharing inserts data safely
+## De-identified export
+
+**This is a risk-reduction tool, not a safety guarantee.** `anonymizeFolder()`
+makes a copy of inserts data less identifiable - it does not make that copy
+"safe to share," and it must never be treated as a substitute for actual data
+governance (DUA, DAC approval, IRB as applicable) or for your own judgment
+about whether something should leave the team at all. Read the "Limits"
+section below before you even consider sending anonymized output anywhere.
 
 Inserts pulled by `im pull` are real donor/sample/tissue records from the
-portal - not safe to paste into a bug report, attach to a ticket, or use as
-example data as-is.
+portal - never paste them into a bug report, attach them to a ticket, or use
+them as example data as-is.
 
 There are two equivalent ways to produce a de-identified copy of a
 `temp-local-inserts*` folder - same underlying implementation
@@ -622,7 +631,7 @@ Output goes to `~/smaht-im-exports/` by default - outside the portal's
 inserts directory, so it's never mistaken for a working `temp-local-inserts*`
 branch.
 
-**Limits - read before sharing anything:**
+**Limits - this does not make data "safe," read before considering sharing anything:**
 
 - Only the JSON insert records are touched. Any sequence/genotype files
   referenced by these records are not de-identified by this script.
