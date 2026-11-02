@@ -14,6 +14,7 @@ import {
   renameFolder,
   deleteFolder,
   moveItems,
+  findLinkedItems,
   reorderItems,
   computeDiff,
   ACTIVE_FOLDER,
@@ -835,10 +836,10 @@ export default function App() {
     }
   };
 
-  const handleMove = (dstName) => {
+  const handleMove = (dstName, includeLinked) => {
     setModal(null);
     try {
-      const result = moveItems(selectedUuids, currentFolder.name, dstName, currentType.name);
+      const result = moveItems(selectedUuids, currentFolder.name, dstName, currentType.name, { includeLinked });
       notify(result.message);
       setSelected(new Set());
       setItemIdx(prev => Math.max(0, prev - result.moved));
@@ -1060,6 +1061,12 @@ export default function App() {
       ? folders.filter(f => f.name !== currentFolder?.name)
       : [];
     const selectedItemObjs = currentItems.filter(i => selectedUuids.has(i.uuid));
+    // Computed straight from already-loaded `folders` state, no extra disk
+    // read - this is a read-only preview, so it doesn't need the
+    // fresh-from-disk guarantee moveItems itself takes at actual write time.
+    const linkedPreview = modal === 'move' && currentFolder && currentType
+      ? findLinkedItems(currentFolder, selectedItemObjs.map(i => i.data), selectedUuids)
+      : null;
 
     return (
       <Box height={appHeight} flexDirection="column" justifyContent="center" alignItems="center">
@@ -1098,6 +1105,7 @@ export default function App() {
             srcFolder={currentFolder?.name}
             typeName={currentType?.name}
             destinations={dstFolders}
+            linkedPreview={linkedPreview}
             onConfirm={handleMove}
             onCancel={() => setModal(null)}
           />
