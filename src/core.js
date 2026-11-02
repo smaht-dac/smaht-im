@@ -498,17 +498,17 @@ export function deleteFolder(folderName) {
 
 // ── move items ────────────────────────────────────────────────────────────────
 
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+const LINK_UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 /** Recursively collect every UUID-shaped substring found anywhere in `value` into `out`. */
-function collectUuids(value, out) {
+function collectLinkUuids(value, out) {
   if (typeof value === 'string') {
-    const matches = value.match(UUID_RE);
+    const matches = value.match(LINK_UUID_RE);
     if (matches) for (const m of matches) out.add(m.toLowerCase());
   } else if (Array.isArray(value)) {
-    for (const v of value) collectUuids(v, out);
+    for (const v of value) collectLinkUuids(v, out);
   } else if (value && typeof value === 'object') {
-    for (const v of Object.values(value)) collectUuids(v, out);
+    for (const v of Object.values(value)) collectLinkUuids(v, out);
   }
 }
 
@@ -535,7 +535,7 @@ export function findLinkedItems(folder, seedRecords, excludeUuids) {
 
   while (frontier.length > 0) {
     const foundUuids = new Set();
-    for (const record of frontier) collectUuids(record, foundUuids);
+    for (const record of frontier) collectLinkUuids(record, foundUuids);
 
     const next = [];
     for (const uuid of foundUuids) {

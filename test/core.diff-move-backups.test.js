@@ -125,6 +125,66 @@ describe('computeDiff', () => {
   });
 });
 
+describe('findLinkedItems', () => {
+  test('finds a directly linked item via a UUID-shaped field value', () => {
+    const full = core.createFolder('link-a');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'd1', submission_center: 'cccccccc-0000-4000-8000-000000000001' }],
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', name: 'Center A' }],
+    });
+    const folder = core.loadFolder(full);
+    const donorRecord = folder.types.find((t) => t.name === 'donor').items[0].data;
+
+    const linked = core.findLinkedItems(folder, [donorRecord], new Set(['d1']));
+    assert.deepEqual([...linked.keys()], ['submission_center']);
+    assert.equal(linked.get('submission_center').length, 1);
+    assert.equal(linked.get('submission_center')[0].uuid, 'cccccccc-0000-4000-8000-000000000001');
+  });
+
+  test('follows links transitively, more than one hop deep', () => {
+    const full = core.createFolder('link-b');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'd1', submission_center: 'cccccccc-0000-4000-8000-000000000001' }],
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', consortium: 'eeeeeeee-0000-4000-8000-000000000002' }],
+      consortium: [{ uuid: 'eeeeeeee-0000-4000-8000-000000000002', name: 'Consortium A' }],
+    });
+    const folder = core.loadFolder(full);
+    const donorRecord = folder.types.find((t) => t.name === 'donor').items[0].data;
+
+    const linked = core.findLinkedItems(folder, [donorRecord], new Set(['d1']));
+    assert.deepEqual([...linked.keys()].sort(), ['consortium', 'submission_center']);
+  });
+
+  test('never re-adds a uuid already in excludeUuids, even if referenced', () => {
+    const full = core.createFolder('link-c');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [
+        { uuid: 'd1', sibling: 'd2' },
+        { uuid: 'd2' },
+      ],
+    });
+    const folder = core.loadFolder(full);
+    const donorRecord = folder.types.find((t) => t.name === 'donor').items[0].data;
+
+    // d2 is part of the same selection being moved, so it must not show up
+    // as a "linked item" of its own — it's already accounted for.
+    const linked = core.findLinkedItems(folder, [donorRecord], new Set(['d1', 'd2']));
+    assert.equal(linked.size, 0);
+  });
+
+  test('ignores a UUID-shaped reference that does not match anything in the folder', () => {
+    const full = core.createFolder('link-d');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, full), {
+      donor: [{ uuid: 'd1', submission_center: 'ffffffff-0000-4000-8000-000000000099' }],
+    });
+    const folder = core.loadFolder(full);
+    const donorRecord = folder.types.find((t) => t.name === 'donor').items[0].data;
+
+    const linked = core.findLinkedItems(folder, [donorRecord], new Set(['d1']));
+    assert.equal(linked.size, 0);
+  });
+});
+
 describe('moveItems', () => {
   test('moves matching items from src to dst and removes them from src', () => {
     const src = core.createFolder('move-src');
@@ -173,6 +233,63 @@ describe('moveItems', () => {
       () => core.moveItems(new Set(['x']), src, 'not-valid', 'donor'),
       /Destination/,
     );
+  });
+
+  test('without includeLinked, leaves linked items untouched in both folders', () => {
+    const src = core.createFolder('move-src5');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, src), {
+      donor: [{ uuid: 'd1', submission_center: 'cccccccc-0000-4000-8000-000000000001' }],
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', name: 'Center A' }],
+    });
+    const dst = core.createFolder('move-dst5');
+
+    const result = core.moveItems(new Set(['d1']), src, dst, 'donor');
+    assert.equal(result.linkedCopied, 0);
+    assert.deepEqual(result.linkedTypeNames, []);
+    assert.equal(fs.existsSync(path.join(core.BRANCHES_BASE, dst, 'submission_center.json')), false);
+  });
+
+  test('with includeLinked, copies linked items into dst and leaves them in src too', () => {
+    const src = core.createFolder('move-src6');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, src), {
+      donor: [{ uuid: 'd1', submission_center: 'cccccccc-0000-4000-8000-000000000001' }],
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', name: 'Center A' }],
+    });
+    const dst = core.createFolder('move-dst6');
+
+    const result = core.moveItems(new Set(['d1']), src, dst, 'donor', { includeLinked: true });
+    assert.equal(result.moved, 1);
+    assert.equal(result.linkedCopied, 1);
+    assert.deepEqual(result.linkedTypeNames, ['submission_center']);
+    assert.match(result.message, /also copied 1 linked item/);
+
+    const srcCenters = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, src, 'submission_center.json'), 'utf8'));
+    const dstCenters = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, dst, 'submission_center.json'), 'utf8'));
+    assert.deepEqual(srcCenters.map((i) => i.uuid), ['cccccccc-0000-4000-8000-000000000001']);
+    assert.deepEqual(dstCenters.map((i) => i.uuid), ['cccccccc-0000-4000-8000-000000000001']);
+
+    // The donor itself is still a true move: gone from src, present in dst.
+    const srcDonors = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, src, 'donor.json'), 'utf8'));
+    assert.deepEqual(srcDonors, []);
+  });
+
+  test('with includeLinked, does not duplicate a linked item already present in dst', () => {
+    const src = core.createFolder('move-src7');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, src), {
+      donor: [{ uuid: 'd1', submission_center: 'cccccccc-0000-4000-8000-000000000001' }],
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', name: 'Center A' }],
+    });
+    const dst = core.createFolder('move-dst7');
+    writeFolderFiles(path.join(core.BRANCHES_BASE, dst), {
+      submission_center: [{ uuid: 'cccccccc-0000-4000-8000-000000000001', name: 'Center A' }],
+    });
+
+    const result = core.moveItems(new Set(['d1']), src, dst, 'donor', { includeLinked: true });
+    assert.equal(result.linkedCopied, 0);
+    assert.deepEqual(result.linkedTypeNames, []);
+
+    const dstCenters = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, dst, 'submission_center.json'), 'utf8'));
+    assert.equal(dstCenters.length, 1);
   });
 });
 
