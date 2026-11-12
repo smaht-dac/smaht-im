@@ -178,6 +178,32 @@ describe('pullBatchIntoFolderAsync', () => {
     });
   });
 
+  test('each query can carry its own {query, limit} object, mixed freely with plain strings', () => {
+    const full = core.createFolder('batch-per-query-limit');
+    return new Promise((resolve) => {
+      const lines = [];
+      core.pullBatchIntoFolderAsync(
+        full,
+        'data',
+        [
+          { query: 'type=Donor', limit: 5 },
+          'type=Tissue', // plain string — falls back to options.limit
+          { query: 'type=FileSet', limit: null }, // explicitly unlimited, overriding options.limit
+        ],
+        () => {},
+        (line) => lines.push(line),
+        (result) => {
+          assert.equal(result.success, true);
+          assert.ok(lines.some((l) => /search=type=Donor&limit=5\b/.test(l)), lines.join('\n'));
+          assert.ok(lines.some((l) => /search=type=Tissue&limit=20\b/.test(l)), lines.join('\n'));
+          assert.ok(lines.some((l) => /search=type=FileSet update=false/.test(l)), lines.join('\n'));
+          resolve();
+        },
+        { limit: 20 },
+      );
+    });
+  });
+
   test('stops at the first failing query rather than skipping past it', () => {
     const full = core.createFolder('batch-partial-fail');
     let call = 0;

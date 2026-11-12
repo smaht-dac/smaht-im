@@ -1164,13 +1164,24 @@ export function syncFolderAsync(folderName, onLine, onDone) {
  * write into) after calling this function but before any callback fires —
  * every caller here does exactly that (call this, then pushLog/startPull).
  *
- * options.limit (see QUERY_LIMIT_PRESETS) caps EACH query in the batch at
- * that many results — null (the default) runs every query unlimited, same
- * as before this option existed.
+ * Each entry in `queries` is either a plain query string, or a
+ * `{ query, limit }` object for a per-query result cap (see
+ * QUERY_LIMIT_PRESETS) — the two forms can be mixed freely in one batch.
+ * A plain string falls back to options.limit (null by default, meaning
+ * unlimited, same as before this option existed); an object's own
+ * `limit` always wins once present, including an explicit `limit: null`
+ * (e.g. the UI's "All" preset) — options.limit is only ever used when the
+ * object has no `limit` key at all.
  */
 export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLine, onDone, options = {}) {
-  const { limit = null } = options;
-  const list = (queries ?? []).map(q => q?.trim()).filter(Boolean);
+  const { limit: batchLimit = null } = options;
+  const list = (queries ?? [])
+    // null is a meaningful value here (explicitly unlimited), not "unset" —
+    // an object must be checked for whether it HAS a limit key at all, not
+    // just whether that value is nullish, or an explicit `limit: null`
+    // (e.g. the UI's "All" preset) would wrongly fall through to batchLimit.
+    .map(q => (typeof q === 'string' ? { query: q?.trim(), limit: batchLimit } : { query: q?.query?.trim(), limit: q && 'limit' in q ? q.limit : batchLimit }))
+    .filter(item => item.query);
   if (list.length === 0) {
     onDone({ success: false, killed: false, ranCount: 0, totalCount: 0, failedQuery: null, diff: null });
     return { kill() {} };
@@ -1181,14 +1192,14 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
   let currentKill = () => {};
 
   const runAt = (i) => {
-    onQuery(i, list.length, list[i]);
-    const { kill } = spawnUpdateInsertsAsync({ env, query: list[i], dest: folderPath, limit }, onLine, (result) => {
+    onQuery(i, list.length, list[i].query);
+    const { kill } = spawnUpdateInsertsAsync({ env, query: list[i].query, dest: folderPath, limit: list[i].limit }, onLine, (result) => {
       if (!result.success) {
         // Earlier queries in the batch may have already merged data into
         // folderPath before this one failed — refresh regardless of i.
         refreshWorkingCopyIfActive(folderName);
         const diff = diffFolderObjects(before, loadFolder(folderName));
-        onDone({ success: false, killed: result.killed, ranCount: i, totalCount: list.length, failedQuery: list[i], diff });
+        onDone({ success: false, killed: result.killed, ranCount: i, totalCount: list.length, failedQuery: list[i].query, diff });
         return;
       }
       if (i + 1 < list.length) {

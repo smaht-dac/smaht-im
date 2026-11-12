@@ -190,25 +190,26 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
     }
     setError(null);
     const trimmed = query.trim();
+    const limit = QUERY_LIMIT_PRESETS[limitIdx];
     onConfirm({
       name:    name.trim(),
       base:    baseOpts[baseIdx].value,
-      queries: trimmed ? [...queued, trimmed] : queued,
+      queries: trimmed ? [...queued, { query: trimmed, limit }] : queued,
       env:     ENVS[envIdx],
-      limit:   QUERY_LIMIT_PRESETS[limitIdx],
       doLoad,
     });
   };
 
-  // Chip-input on the Query field: Enter on non-empty text queues it and
-  // clears the field; Enter on an already-empty field creates the folder
-  // with whatever's queued (0 or more) — so "type, Enter, type, Enter, ...,
-  // Enter" both builds the query list and creates, and a plain Enter with
-  // nothing typed still creates a query-less folder as before.
+  // Chip-input on the Query field: Enter on non-empty text queues it (paired
+  // with whatever Limit is currently selected, so each query can carry its
+  // own cap) and clears the field; Enter on an already-empty field creates
+  // the folder with whatever's queued (0 or more) — so "type, Enter, type,
+  // Enter, ..., Enter" both builds the query list and creates, and a plain
+  // Enter with nothing typed still creates a query-less folder as before.
   const submitQuery = (value) => {
     const trimmed = value.trim();
     if (trimmed) {
-      setQueued(prev => [...prev, trimmed]);
+      setQueued(prev => [...prev, { query: trimmed, limit: QUERY_LIMIT_PRESETS[limitIdx] }]);
       setQuery('');
       return;
     }
@@ -262,7 +263,7 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
   const enterLabel = fieldIdx === 2 && query.trim() ? 'Add query' : 'Create';
 
   return (
-    <Dialog title="⊕  New Folder" titleColor="cyan" width={74}>
+    <Dialog title="⊕  New Folder" titleColor="cyan" width={88}>
       {/* ── Name ── */}
       <Box>
         <Text color={fc(0)}>{'Name    '}</Text>
@@ -296,7 +297,8 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
           <Text color="gray">Queued to run in order:</Text>
           {queued.map((q, i) => (
             <Box key={i} paddingLeft={2}>
-              <Text color="white">{i + 1}. {trunc(q, 62)}</Text>
+              <Text color="white">{i + 1}. {trunc(q.query, 54)}</Text>
+              <Text color="gray">  (limit: {formatQueryLimit(q.limit)})</Text>
             </Box>
           ))}
         </Box>
@@ -342,6 +344,7 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
           })}
         </Box>
       </Box>
+      <Text color="gray">Applies to the next query you add — each queued query keeps its own limit.</Text>
 
       {/* ── Checkout toggle ── */}
       <Box marginTop={1}>
@@ -1294,17 +1297,19 @@ export function PullMoreModal({ folder, currentQuery, onConfirm, onCancel }) {
 
   useEffect(() => { setReady(fieldIdx); }, [fieldIdx]);
 
-  // Enter on non-empty text adds it to the batch (chip-input style); Enter
-  // on an already-empty field runs everything queued so far — so "type,
-  // Enter, type, Enter, ..., Enter" both builds and runs the batch.
+  // Enter on non-empty text adds it to the batch (chip-input style, paired
+  // with whatever Limit is currently selected so each query can carry its
+  // own cap); Enter on an already-empty field runs everything queued so
+  // far — so "type, Enter, type, Enter, ..., Enter" both builds and runs
+  // the batch.
   const submitQuery = (value) => {
     const trimmed = value.trim();
     if (trimmed) {
-      setQueued(prev => [...prev, trimmed]);
+      setQueued(prev => [...prev, { query: trimmed, limit: QUERY_LIMIT_PRESETS[limitIdx] }]);
       setQuery('');
       return;
     }
-    if (queued.length > 0) onConfirm({ env: TRACKING_ENVS[envIdx], queries: queued, limit: QUERY_LIMIT_PRESETS[limitIdx] });
+    if (queued.length > 0) onConfirm({ env: TRACKING_ENVS[envIdx], queries: queued });
   };
 
   useInput((input, key) => {
@@ -1334,7 +1339,7 @@ export function PullMoreModal({ folder, currentQuery, onConfirm, onCancel }) {
   const enterLabel = query.trim() ? 'Add query' : (queued.length > 0 ? `Run ${queued.length}` : 'Add query');
 
   return (
-    <Dialog title={`⊕  Pull more into '${folderLabel(folder.name)}'`} titleColor="cyan" width={76}>
+    <Dialog title={`⊕  Pull more into '${folderLabel(folder.name)}'`} titleColor="cyan" width={88}>
       <Text color="gray">Adds matching items on top of what's already here — doesn't</Text>
       <Text color="gray">change the folder's tracked query, and existing items are kept.</Text>
       {currentQuery?.query && (
@@ -1374,14 +1379,16 @@ export function PullMoreModal({ folder, currentQuery, onConfirm, onCancel }) {
           })}
         </Box>
       </Box>
+      <Text color="gray">Applies to the next query you add — each queued query keeps its own limit.</Text>
 
       {/* Queries queued so far */}
       {queued.length > 0 && (
         <Box flexDirection="column" marginTop={1}>
-          <Text color="gray">Queued to run in order (limit applies to each):</Text>
+          <Text color="gray">Queued to run in order:</Text>
           {queued.map((q, i) => (
             <Box key={i} paddingLeft={2}>
-              <Text color="white">{i + 1}. {trunc(q, 62)}</Text>
+              <Text color="white">{i + 1}. {trunc(q.query, 54)}</Text>
+              <Text color="gray">  (limit: {formatQueryLimit(q.limit)})</Text>
             </Box>
           ))}
         </Box>
