@@ -12,6 +12,11 @@
  *   FAKE_UPDATE_INSERTS_EXIT_CODE  - non-zero to simulate a failed pull
  *   FAKE_UPDATE_INSERTS_TYPE       - insert type file to write (default 'donor')
  *   FAKE_UPDATE_INSERTS_UUID       - uuid of the item to merge in (default: random)
+ *
+ * --update (no --search) simulates the real tool's refresh-only mode: it
+ * touches every item already in the type file (bumping `status`) but never
+ * adds a new uuid, matching real update-inserts-from-server's --update
+ * flag — see syncFolderAsync's updateOnly switch in src/core.js.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,8 +27,9 @@ const getArg = (flag) => {
   const i = args.indexOf(flag);
   return i === -1 ? null : args[i + 1];
 };
+const updateOnly = args.includes('--update');
 
-console.log(`[fake update-inserts-from-server] env=${getArg('--env')} search=${getArg('--search')}`);
+console.log(`[fake update-inserts-from-server] env=${getArg('--env')} search=${getArg('--search')} update=${updateOnly}`);
 
 const exitCode = Number(process.env.FAKE_UPDATE_INSERTS_EXIT_CODE ?? '0');
 if (exitCode !== 0) {
@@ -39,7 +45,9 @@ if (dest) {
   const file = path.join(dest, `${type}.json`);
   let existing = [];
   try { existing = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* new file */ }
-  if (!existing.some((i) => i.uuid === uuid)) {
+  if (updateOnly) {
+    existing = existing.map((i) => ({ ...i, status: 'released' }));
+  } else if (!existing.some((i) => i.uuid === uuid)) {
     existing.push({ uuid, submitted_id: `FAKE-${uuid.slice(0, 8)}`, status: 'shared' });
   }
   fs.writeFileSync(file, JSON.stringify(existing, null, 2));

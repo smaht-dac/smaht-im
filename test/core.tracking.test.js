@@ -108,3 +108,69 @@ describe('checkRemoteAsync (paths that never touch the network)', () => {
     });
   });
 });
+
+describe('checkRemoteAsync — limit-capped tracking query', () => {
+  const writeKeys = () => {
+    const keysFile = path.join(os.homedir(), '.smaht-keys.json');
+    fs.writeFileSync(keysFile, JSON.stringify({ data: { key: 'k', secret: 's', server: 'https://x.example' } }));
+  };
+
+  const withFakeFetch = async (remoteUuids, run) => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ '@graph': remoteUuids.map((uuid) => ({ uuid })) }),
+    });
+    try { await run(); } finally { globalThis.fetch = realFetch; }
+  };
+
+  test('caps "behind" at how much more is needed to reach the limit, not the full remote total', async () => {
+    writeKeys();
+    const full = core.createFolder('remote-capped');
+    fs.writeFileSync(path.join(core.BRANCHES_BASE, full, 'donor.json'), JSON.stringify([{ uuid: 'local-1' }]));
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor', limit: 3 } });
+
+    // 4 remote items are missing locally, but the cap only wants 3 total and
+    // already has 1, so only 2 more should ever be reported as "behind".
+    await withFakeFetch(['local-1', 'remote-2', 'remote-3', 'remote-4', 'remote-5'], () => new Promise((resolve) => {
+      core.checkRemoteAsync(full, (result) => {
+        assert.equal(result.status, 'ok');
+        assert.equal(result.behind, 2);
+        resolve();
+      });
+    }));
+  });
+
+  test('reports 0 behind once local already has at least `limit` items', async () => {
+    writeKeys();
+    const full = core.createFolder('remote-capped-full');
+    fs.writeFileSync(
+      path.join(core.BRANCHES_BASE, full, 'donor.json'),
+      JSON.stringify([{ uuid: 'local-1' }, { uuid: 'local-2' }]),
+    );
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor', limit: 2 } });
+
+    await withFakeFetch(['local-1', 'local-2', 'remote-3', 'remote-4'], () => new Promise((resolve) => {
+      core.checkRemoteAsync(full, (result) => {
+        assert.equal(result.status, 'ok');
+        assert.equal(result.behind, 0);
+        resolve();
+      });
+    }));
+  });
+
+  test('an uncapped tracking query (limit null) still reports the full remote total', async () => {
+    writeKeys();
+    const full = core.createFolder('remote-uncapped');
+    fs.writeFileSync(path.join(core.BRANCHES_BASE, full, 'donor.json'), JSON.stringify([{ uuid: 'local-1' }]));
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor' } });
+
+    await withFakeFetch(['local-1', 'remote-2', 'remote-3'], () => new Promise((resolve) => {
+      core.checkRemoteAsync(full, (result) => {
+        assert.equal(result.status, 'ok');
+        assert.equal(result.behind, 2);
+        resolve();
+      });
+    }));
+  });
+});

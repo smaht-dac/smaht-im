@@ -74,6 +74,54 @@ describe('syncFolderAsync', () => {
       });
     });
   });
+
+  test('a capped tracking query below the limit still searches, with the limit appended', () => {
+    const full = core.createFolder('sync-limit-below');
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor', limit: 5 } });
+    return new Promise((resolve) => {
+      const lines = [];
+      core.syncFolderAsync(full, (line) => lines.push(line), (success) => {
+        assert.equal(success, true);
+        assert.ok(lines.some((l) => /search=type=Donor&limit=5\b/.test(l)), lines.join('\n'));
+        assert.ok(lines.some((l) => /update=false/.test(l)), lines.join('\n'));
+        resolve();
+      });
+    });
+  });
+
+  test('a capped tracking query already at the limit switches to --update and does not grow', () => {
+    const full = core.createFolder('sync-limit-at-cap');
+    fs.writeFileSync(
+      path.join(core.BRANCHES_BASE, full, 'donor.json'),
+      JSON.stringify([{ uuid: 'existing-1', status: 'shared' }]),
+    );
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor', limit: 1 } });
+    return new Promise((resolve) => {
+      const lines = [];
+      core.syncFolderAsync(full, (line) => lines.push(line), (success) => {
+        assert.equal(success, true);
+        assert.ok(lines.some((l) => /update=true/.test(l)), lines.join('\n'));
+        const after = JSON.parse(fs.readFileSync(path.join(core.BRANCHES_BASE, full, 'donor.json'), 'utf8'));
+        assert.equal(after.length, 1, 'should not have pulled in a new item past the cap');
+        assert.equal(after[0].uuid, 'existing-1');
+        assert.equal(after[0].status, 'released', 'existing item should still have been refreshed');
+        resolve();
+      });
+    });
+  });
+
+  test('an explicit limit= already in the query is respected as-is, not duplicated', () => {
+    const full = core.createFolder('sync-limit-explicit');
+    core.saveBranchMeta(full, { __tracking__: { env: 'data', query: 'type=Donor&limit=3', limit: 25 } });
+    return new Promise((resolve) => {
+      const lines = [];
+      core.syncFolderAsync(full, (line) => lines.push(line), (success) => {
+        assert.equal(success, true);
+        assert.ok(lines.some((l) => /search=type=Donor&limit=3\b/.test(l)), lines.join('\n'));
+        resolve();
+      });
+    });
+  });
 });
 
 describe('pullBatchIntoFolderAsync', () => {
@@ -105,6 +153,53 @@ describe('pullBatchIntoFolderAsync', () => {
           assert.equal(core.listBackups(full).length, 0);
           resolve();
         },
+      );
+    });
+  });
+
+  test('options.limit appends limit=N to every query in the batch', () => {
+    const full = core.createFolder('batch-limit');
+    return new Promise((resolve) => {
+      const lines = [];
+      core.pullBatchIntoFolderAsync(
+        full,
+        'data',
+        ['type=Donor', 'type=Tissue'],
+        () => {},
+        (line) => lines.push(line),
+        (result) => {
+          assert.equal(result.success, true);
+          assert.ok(lines.some((l) => /search=type=Donor&limit=10\b/.test(l)), lines.join('\n'));
+          assert.ok(lines.some((l) => /search=type=Tissue&limit=10\b/.test(l)), lines.join('\n'));
+          resolve();
+        },
+        { limit: 10 },
+      );
+    });
+  });
+
+  test('each query can carry its own {query, limit} object, mixed freely with plain strings', () => {
+    const full = core.createFolder('batch-per-query-limit');
+    return new Promise((resolve) => {
+      const lines = [];
+      core.pullBatchIntoFolderAsync(
+        full,
+        'data',
+        [
+          { query: 'type=Donor', limit: 5 },
+          'type=Tissue', // plain string — falls back to options.limit
+          { query: 'type=FileSet', limit: null }, // explicitly unlimited, overriding options.limit
+        ],
+        () => {},
+        (line) => lines.push(line),
+        (result) => {
+          assert.equal(result.success, true);
+          assert.ok(lines.some((l) => /search=type=Donor&limit=5\b/.test(l)), lines.join('\n'));
+          assert.ok(lines.some((l) => /search=type=Tissue&limit=20\b/.test(l)), lines.join('\n'));
+          assert.ok(lines.some((l) => /search=type=FileSet update=false/.test(l)), lines.join('\n'));
+          resolve();
+        },
+        { limit: 20 },
       );
     });
   });
