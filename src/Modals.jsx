@@ -338,15 +338,20 @@ export function NewFolderModal({ folders, onConfirm, onCancel, initialBase = nul
 
 // ── MoveModal ─────────────────────────────────────────────────────────────────
 
-export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm, onCancel }) {
+export function MoveModal({ items, srcFolder, typeName, destinations, linkedPreview, onConfirm, onCancel }) {
   const [dstIdx, setDstIdx] = useState(0);
+  const [includeLinked, setIncludeLinked] = useState(false);
+
+  const linkedCount = linkedPreview ? [...linkedPreview.values()].reduce((n, arr) => n + arr.length, 0) : 0;
+  const linkedTypeNames = linkedPreview ? [...linkedPreview.keys()] : [];
 
   useInput((input, key) => {
     if (key.escape || input === 'n') { onCancel(); return; }
     if (key.upArrow   || input === 'k') setDstIdx(i => Math.max(0, i - 1));
     if (key.downArrow || input === 'j') setDstIdx(i => Math.min(destinations.length - 1, i + 1));
+    if (input === ' ' && linkedCount > 0) { setIncludeLinked(v => !v); return; }
     if (key.return || input === 'm') {
-      if (destinations[dstIdx]) onConfirm(destinations[dstIdx].name);
+      if (destinations[dstIdx]) onConfirm(destinations[dstIdx].name, includeLinked);
     }
   });
 
@@ -373,6 +378,18 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
       )}
 
       <Box height={1} />
+      {linkedCount > 0 ? (
+        <Box flexDirection="column">
+          <Text color={includeLinked ? 'green' : 'white'}>
+            [{includeLinked ? 'x' : ' '}] (Space) Also copy {linkedCount} linked item{linkedCount !== 1 ? 's' : ''} found via UUID references ({linkedTypeNames.join(', ')})
+          </Text>
+          <Text color="gray">    These are COPIED into the destination, not moved - they stay in '{folderLabel(srcFolder)}' too, since other items there may still reference them.</Text>
+        </Box>
+      ) : (
+        linkedPreview && <Text color="gray">No linked items found via UUID references in the other types here.</Text>
+      )}
+
+      <Box height={1} />
       <Text color="yellow">Destination folder  (↑↓ / jk to choose, Enter to move):</Text>
 
       {visible.map((f, i) => (
@@ -393,6 +410,7 @@ export function MoveModal({ items, srcFolder, typeName, destinations, onConfirm,
       <ButtonBar
         buttons={[
           { key: 'Enter / m', label: 'Move', color: 'green' },
+          ...(linkedCount > 0 ? [{ key: 'Space', label: includeLinked ? 'Linked: on' : 'Linked: off', color: 'cyan' }] : []),
           { key: 'Esc / n', label: 'Cancel', color: 'red' },
         ]}
       />

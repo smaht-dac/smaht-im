@@ -498,12 +498,79 @@ export function deleteFolder(folderName) {
 
 // ── move items ────────────────────────────────────────────────────────────────
 
+const LINK_UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Recursively collect every UUID-shaped substring found anywhere in `value` into `out`. */
+function collectLinkUuids(value, out) {
+  if (typeof value === 'string') {
+    const matches = value.match(LINK_UUID_RE);
+    if (matches) for (const m of matches) out.add(m.toLowerCase());
+  } else if (Array.isArray(value)) {
+    for (const v of value) collectLinkUuids(v, out);
+  } else if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) collectLinkUuids(v, out);
+  }
+}
+
+/**
+ * Find every item in `folder` transitively reachable from `seedRecords` by
+ * following UUID-shaped values in their fields - the same "any field value
+ * that looks like a UUID is a link" heuristic update-inserts-from-server
+ * itself uses when pulling from the portal (see "Pull/sync mechanics"),
+ * just resolved against data already loaded locally instead of fetched.
+ * `excludeUuids` seeds the visited set so already-selected items (and
+ * anything already walked) are never re-added. Returns Map<typeName,
+ * record[]> of raw insert records (ready to write straight into a type
+ * file), never including anything not already present in `folder`.
+ */
+export function findLinkedItems(folder, seedRecords, excludeUuids) {
+  const byUuid = new Map();
+  for (const t of folder.types) {
+    for (const item of t.items) byUuid.set(item.uuid, { typeName: t.name, record: item.data });
+  }
+
+  const visited = new Set(excludeUuids);
+  const result = new Map();
+  let frontier = seedRecords;
+
+  while (frontier.length > 0) {
+    const foundUuids = new Set();
+    for (const record of frontier) collectLinkUuids(record, foundUuids);
+
+    const next = [];
+    for (const uuid of foundUuids) {
+      if (visited.has(uuid)) continue;
+      visited.add(uuid);
+      const hit = byUuid.get(uuid);
+      if (!hit) continue; // not present locally - nothing to grab
+      if (!result.has(hit.typeName)) result.set(hit.typeName, []);
+      result.get(hit.typeName).push(hit.record);
+      next.push(hit.record);
+    }
+    frontier = next;
+  }
+
+  return result;
+}
+
 /**
  * Move items (by UUID set) from src/typeName.json to dst/typeName.json.
  * Both src and dst must be temp-local-inserts* folders.
- * Returns { moved, skipped, message }.
+ *
+ * With `{ includeLinked: true }`, also pulls in every item in src
+ * transitively linked from the moved items (via findLinkedItems above) and
+ * COPIES those into dst - added to the destination, but deliberately left
+ * in place in the source, never removed. Only the items the caller actually
+ * selected are ever removed from src. Removing a linked item too could
+ * orphan some other, unrelated item still left behind in src that happens
+ * to reference the same thing (a shared SubmissionCenter, say) - copying
+ * instead of moving the linked set is what avoids that risk, at the cost of
+ * src and dst both holding a copy of those linked items afterward.
+ *
+ * Returns { moved, skipped, linkedCopied, linkedTypeNames, message }.
  */
-export function moveItems(uuidSet, srcName, dstName, typeName) {
+export function moveItems(uuidSet, srcName, dstName, typeName, options = {}) {
+  const { includeLinked = false } = options;
   if (!srcName.startsWith(INSERT_PREFIX)) throw new Error(`Source '${srcName}' is not valid`);
   if (!dstName.startsWith(INSERT_PREFIX)) throw new Error(`Destination '${dstName}' is not valid`);
 
@@ -516,7 +583,10 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   const toMove = srcAll.filter(item => uuidSet.has(item.uuid));
   const remaining = srcAll.filter(item => !uuidSet.has(item.uuid));
 
-  if (!toMove.length) return { moved: 0, skipped: 0, message: 'No matching items found' };
+  if (!toMove.length) return { moved: 0, skipped: 0, linkedCopied: 0, linkedTypeNames: [], message: 'No matching items found' };
+
+  // Resolved against the pre-move snapshot, before anything is written.
+  const linkedByType = includeLinked ? findLinkedItems(loadFolder(srcName), toMove, uuidSet) : new Map();
 
   const dstUuids = new Set(dstAll.map(i => i.uuid));
   const newItems = toMove.filter(i => !dstUuids.has(i.uuid));
@@ -525,13 +595,31 @@ export function moveItems(uuidSet, srcName, dstName, typeName) {
   fs.mkdirSync(resolveFolderPath(dstName), { recursive: true });
   writeJson(srcFile, remaining);
   writeJson(dstFile, [...dstAll, ...newItems]);
-  refreshWorkingCopyIfActive(srcName);
-  refreshWorkingCopyIfActive(dstName);
 
   const moved = newItems.length;
   let message = `Moved ${moved} item${moved !== 1 ? 's' : ''} → '${dstName}/${typeName}.json'`;
   if (skipped) message += ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)`;
-  return { moved, skipped, message };
+
+  let linkedCopied = 0;
+  const linkedTypeNames = [];
+  for (const [tName, records] of linkedByType) {
+    const tDstFile = path.join(resolveFolderPath(dstName), `${tName}.json`);
+    const tDstAll = readJson(tDstFile) ?? [];
+    const tDstUuids = new Set(tDstAll.map(i => i.uuid));
+    const tNew = records.filter(r => !tDstUuids.has(r.uuid));
+    if (tNew.length === 0) continue;
+    writeJson(tDstFile, [...tDstAll, ...tNew]);
+    linkedCopied += tNew.length;
+    linkedTypeNames.push(tName);
+  }
+  if (linkedCopied > 0) {
+    message += `; also copied ${linkedCopied} linked item${linkedCopied !== 1 ? 's' : ''} (${linkedTypeNames.join(', ')}) into the destination - left in place in the source too`;
+  }
+
+  refreshWorkingCopyIfActive(srcName);
+  refreshWorkingCopyIfActive(dstName);
+
+  return { moved, skipped, linkedCopied, linkedTypeNames, message };
 }
 
 /**
