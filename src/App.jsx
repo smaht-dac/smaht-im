@@ -704,7 +704,7 @@ export default function App() {
     }
   };
 
-  const handleCreateFolder = ({ name, base, queries, env, doLoad }) => {
+  const handleCreateFolder = ({ name, base, queries, env, limit, doLoad }) => {
     const total = queries?.length ?? 0;
     // This is the one pull path that writes through the shared working copy
     // (ACTIVE_FOLDER below) rather than straight to its own target folder,
@@ -757,7 +757,7 @@ export default function App() {
                 // step. With several disjoint queries there's no one query that
                 // re-running `f` could use, so tracking is left unset (same as
                 // any other query-less folder) rather than storing a misleading one.
-                if (total === 1) saveBranchMeta(newName, { __tracking__: { env, query: queries[0] } });
+                if (total === 1) saveBranchMeta(newName, { __tracking__: { env, query: queries[0], limit } });
                 triggerRemoteCheck(newName);
               }
               if (!doLoad && prevLoaded) {
@@ -796,6 +796,7 @@ export default function App() {
             }
             refresh();
           },
+          { limit },
         );
         const cmd = total === 1 ? `pull: ${queries[0]}` : `pull-batch: ${total} queries`;
         pushLog(`$ ${cmd}`);
@@ -922,7 +923,7 @@ export default function App() {
     if (cmd) { pushLog(`$ ${cmd}`); startPull('resync', folderName, cmd, kill); }
   };
 
-  const handlePullMore = ({ env, queries }) => {
+  const handlePullMore = ({ env, queries, limit }) => {
     setModal(null);
     const folderName = currentFolder.name;
     const total = queries.length;
@@ -953,6 +954,7 @@ export default function App() {
           notify(`Pulled more into '${folderLabel(folderName)}' — no new items matched`);
         }
       },
+      { limit },
     );
     pushLog(`$ ${cmd}`);
     startPull('pull-more', folderName, cmd, kill);
@@ -989,10 +991,10 @@ export default function App() {
     }
   };
 
-  const handleSetQuery = ({ env, query }) => {
+  const handleSetQuery = ({ env, query, limit }) => {
     setModal(null);
     saveBranchMeta(currentFolder.name, {
-      __tracking__:    { env, query },
+      __tracking__:    { env, query, limit },
       __remote_cache__: null,
     });
     notify(`Tracking query set for '${folderLabel(currentFolder.name)}'`);

@@ -362,6 +362,29 @@ export function createFolder(name, baseBranch = null) {
 }
 
 /**
+ * Quick per-query result cap, offered as a preset slider everywhere a
+ * portal search query is entered (NewFolderModal, SetQueryModal,
+ * PullMoreModal). null means "All" — no cap, today's existing behavior,
+ * and always the default.
+ */
+export const QUERY_LIMIT_PRESETS = [null, 5, 10, 25, 50, 100];
+export function formatQueryLimit(limit) { return limit === null ? 'All' : String(limit); }
+
+/**
+ * Appends `limit=N` to a raw portal search-query string for a one-off
+ * capped pull. Leaves the query untouched when `limit` is null ("All") or
+ * the query already specifies its own limit= — an explicit limit typed by
+ * hand is always respected as-is, never overridden by the preset.
+ */
+function withQueryLimit(query, limit) {
+  if (limit == null) return query;
+  const q = query || '';
+  if (/[?&]limit=/i.test(q)) return q;
+  if (!q) return `?limit=${limit}`;
+  return `${q}${q.endsWith('&') ? '' : '&'}limit=${limit}`;
+}
+
+/**
  * Low-level spawn wrapper for update-inserts-from-server, shared by
  * syncFolderAsync and pullBatchIntoFolderAsync (both re-pull into a named
  * folder via --dest; passing ACTIVE_FOLDER as that name targets the working
@@ -375,14 +398,21 @@ export function createFolder(name, baseBranch = null) {
  * always programmatic and pre-validated, never a user typo, so answering
  * "y" unconditionally is correct here.
  *
- * opts: { env, query, dest } — dest omitted => CLI's own default (temp-local-inserts).
+ * opts: { env, query, dest, limit, updateOnly } — dest omitted => CLI's own
+ * default (temp-local-inserts); limit caps a --search query's result count
+ * (see withQueryLimit, ignored when updateOnly is set); updateOnly swaps
+ * --search for --update entirely — refreshes every item already present in
+ * dest without searching for anything new, used once a capped tracking
+ * query has already reached its limit (see syncFolderAsync).
  * onLine(line)   — one call per stdout/stderr line, in arrival order.
  * onDone(result) — result = { success, killed, code, signal }; success is
  *                  always false when killed is true.
  * Returns { cmd, kill() } — kill() sends SIGTERM once; safe to call again.
  */
-function spawnUpdateInsertsAsync({ env, query, dest }, onLine, onDone) {
-  const args = ['--env', env, '--portal', 'smaht', '--search', query];
+function spawnUpdateInsertsAsync({ env, query, dest, limit, updateOnly }, onLine, onDone) {
+  const args = ['--env', env, '--portal', 'smaht'];
+  if (updateOnly) args.push('--update');
+  else args.push('--search', withQueryLimit(query, limit));
   if (dest) args.push('--dest', dest);
   const cmd = `update-inserts-from-server ${args.join(' ')}`;
 
@@ -985,6 +1015,9 @@ export function loadEnvAuth(env) {
  * Background UUID-set staleness check for one folder.
  * Reads the im.py manifest (or __tracking__ key set via SetQueryModal).
  * Respects a 5-min TTL cached in __remote_cache__.
+ * When __tracking__ has a `limit`, `behind` is capped at how much more is
+ * needed to reach it (0 once local already has `limit` items), not the
+ * full uncapped remote match count — see syncFolderAsync.
  * Calls onProgress({ status, behind, ahead, error }) when done.
  */
 export function checkRemoteAsync(folderName, onProgress) {
@@ -1019,6 +1052,9 @@ export function checkRemoteAsync(folderName, onProgress) {
     const entry      = isTracking ? meta.__tracking__ : meta.types[typeName];
     const env        = entry?.env ?? 'data';
     const query      = entry?.query ?? '';
+    // Only the __tracking__ entry can carry a limit (see SetQueryModal) —
+    // im.py's own per-type entries never set one.
+    const limit      = isTracking ? (entry?.limit ?? null) : null;
     const auth       = loadEnvAuth(env);
     if (!auth) throw new Error(`No credentials for env '${env}'`);
 
@@ -1030,9 +1066,15 @@ export function checkRemoteAsync(folderName, onProgress) {
 
     const remoteUuids = new Set((await res.json())['@graph']?.map(i => i.uuid).filter(Boolean) ?? []);
     const local = isTracking ? allLocal : (localByType[typeName] ?? new Set());
+    let behind = [...remoteUuids].filter(u => !local.has(u)).length;
+    // A capped tracking query only ever wants `limit` items total — once
+    // local already has that many, nothing more is being pulled for it, so
+    // "behind" reflects remaining room under the cap, not the full
+    // uncapped remote total (see syncFolderAsync's updateOnly switch).
+    if (limit != null) behind = Math.max(0, Math.min(behind, limit - local.size));
     return {
-      behind: [...remoteUuids].filter(u => !local.has(u)).length,
-      ahead:  [...local].filter(u => !remoteUuids.has(u)).length,
+      behind,
+      ahead: [...local].filter(u => !remoteUuids.has(u)).length,
     };
   });
 
@@ -1051,6 +1093,14 @@ export function checkRemoteAsync(folderName, onProgress) {
  * Re-pull all tracked types for a named folder directly (not through the working copy),
  * using the folder's stored tracking query (see setQuery / `t`). The folder is backed
  * up first, so a bad sync is always recoverable via restoreBackup.
+ *
+ * When the tracking entry has a `limit` set (see SetQueryModal's Limit
+ * slider), the cap applies once and then holds: as long as the folder has
+ * fewer than `limit` items, this still searches (capped at `limit`) to fill
+ * up toward it, but once it's reached, further syncs switch to --update
+ * only — refreshing exactly what's already there, never pulling in more.
+ * Without a limit (the default), behavior is unchanged: always --search.
+ *
  * onLine(line) streams progress as it arrives.
  * Calls onDone(success, message, diff, result) when complete — diff is the type-level
  * before/after change list (see diffFolderObjects), or null if it can't be computed.
@@ -1065,8 +1115,11 @@ export function syncFolderAsync(folderName, onLine, onDone) {
   const before = loadFolder(folderName);
   backupFolder(folderName, 'before folder sync');
 
+  const limit      = entry?.limit ?? null;
+  const updateOnly = limit != null && (before?.totalItems ?? 0) >= limit;
+
   const folderPath = resolveFolderPath(folderName);
-  return spawnUpdateInsertsAsync({ env, query, dest: folderPath }, onLine, (result) => {
+  return spawnUpdateInsertsAsync({ env, query, dest: folderPath, limit, updateOnly }, onLine, (result) => {
     if (result.success) {
       saveBranchMeta(folderName, { __remote_cache__: null });
       refreshWorkingCopyIfActive(folderName);
@@ -1110,8 +1163,13 @@ export function syncFolderAsync(folderName, onLine, onDone) {
  * (App.jsx's startPull, which creates the pullStates entry those calls
  * write into) after calling this function but before any callback fires —
  * every caller here does exactly that (call this, then pushLog/startPull).
+ *
+ * options.limit (see QUERY_LIMIT_PRESETS) caps EACH query in the batch at
+ * that many results — null (the default) runs every query unlimited, same
+ * as before this option existed.
  */
-export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLine, onDone) {
+export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLine, onDone, options = {}) {
+  const { limit = null } = options;
   const list = (queries ?? []).map(q => q?.trim()).filter(Boolean);
   if (list.length === 0) {
     onDone({ success: false, killed: false, ranCount: 0, totalCount: 0, failedQuery: null, diff: null });
@@ -1124,7 +1182,7 @@ export function pullBatchIntoFolderAsync(folderName, env, queries, onQuery, onLi
 
   const runAt = (i) => {
     onQuery(i, list.length, list[i]);
-    const { kill } = spawnUpdateInsertsAsync({ env, query: list[i], dest: folderPath }, onLine, (result) => {
+    const { kill } = spawnUpdateInsertsAsync({ env, query: list[i], dest: folderPath, limit }, onLine, (result) => {
       if (!result.success) {
         // Earlier queries in the batch may have already merged data into
         // folderPath before this one failed — refresh regardless of i.

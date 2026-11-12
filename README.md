@@ -187,15 +187,15 @@ flight, regardless of which panel is focused.
 | `a` | Folders | **Load** selected folder - replaces `temp-local-inserts` contents, updates HEAD |
 | `Space` | Folders | **Load** selected folder (same as `a`, quick-select shortcut) |
 | `s` | Folders | **Snapshot** - copy working copy to a named `temp-local-inserts-<name>` |
-| `n` | Folders | **New folder** - create a branch, optionally forked from an existing one and/or seeded by pulling one or more queries from the portal right away (chip-input: type a query, Enter to queue another, Enter on empty to create) |
+| `n` | Folders | **New folder** - create a branch, optionally forked from an existing one and/or seeded by pulling one or more queries from the portal right away (chip-input: type a query, Enter to queue another, Enter on empty to create). A Limit slider (default All) caps each query's results |
 | `N` | Folders | **New empty folder** - same as `n`, but defaults the base to `(none)` |
 | `r` | Folders | **Rename** selected folder |
 | `d` | Folders | **Diff** selected folder vs `temp-local-inserts` |
 | `D` | Folders | Delete selected folder (with confirmation) |
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` - reduces identifiability, does not make the result safe to share (see [De-identified export](#de-identified-export)) |
-| `f` | Folders | **Sync** - re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
-| `t` | Folders | **Set tracking query** - pick an env + query for this folder to sync against (`f`) and check staleness with |
-| `A` | Folders | **Pull more** - queue one or more extra queries to pull into this folder without touching its stored tracking query |
+| `f` | Folders | **Sync** - re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed. If the tracking query has a Limit set and the folder already has that many items, this refreshes them in place instead of searching for more |
+| `t` | Folders | **Set tracking query** - pick an env + query (and optionally a result Limit, default All) for this folder to sync against (`f`) and check staleness with |
+| `A` | Folders | **Pull more** - queue one or more extra queries (each with its own Limit) to pull into this folder without touching its stored tracking query |
 | `p` | Folders | **View pull output** - full scrollable log of the current/last pull for the highlighted folder (shown only while/just after one has run) |
 | `x` | Folders | **Cancel** an in-progress pull/sync for the highlighted folder |
 | `H` | Folders | **History** - browse and restore this folder's pre-sync/restore backups (newest first, up to 10 kept) |
