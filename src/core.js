@@ -597,7 +597,7 @@ export function moveItems(uuidSet, srcName, dstName, typeName, options = {}) {
   writeJson(dstFile, [...dstAll, ...newItems]);
 
   const moved = newItems.length;
-  let message = `Moved ${moved} item${moved !== 1 ? 's' : ''} → '${dstName}/${typeName}.json'`;
+  let message = `Moved ${moved} item${moved !== 1 ? 's' : ''} → '${dstName}/${typeName}'`;
   if (skipped) message += ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)`;
 
   let linkedCopied = 0;
@@ -656,9 +656,9 @@ export function reorderItems(folderName, typeName, uuidSet, targetUuid, position
   if (!moved.length) return { moved: 0, insertAt: 0, message: 'No matching items found' };
 
   const targetIdx = rest.findIndex(item => item.uuid === targetUuid);
-  if (targetIdx === -1) throw new Error(`Target item not found in '${typeName}.json'`);
+  if (targetIdx === -1) throw new Error(`Target item not found in '${typeName}'`);
 
-  backupFolder(folderName, `before reordering ${typeName}.json`);
+  backupFolder(folderName, `before reordering ${typeName}`);
 
   const insertAt = position === 'before' ? targetIdx : targetIdx + 1;
   const reordered = [...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)];
@@ -887,10 +887,10 @@ const HIDE_CURSOR      = '\x1b[?25l';
 export function editTypeFile(folderName, typeName) {
   const filePath = path.join(resolveFolderPath(folderName), `${typeName}.json`);
   if (!fs.existsSync(filePath)) {
-    throw new Error(`'${typeName}.json' not found in '${folderLabel(folderName)}'`);
+    throw new Error(`'${typeName}' not found in '${folderLabel(folderName)}'`);
   }
 
-  backupFolder(folderName, `before manual edit: ${typeName}.json`);
+  backupFolder(folderName, `before manual edit: ${typeName}`);
 
   const editor = process.env.VISUAL || process.env.EDITOR || 'vi';
   const wasRaw = process.stdin.isRaw ?? false;
