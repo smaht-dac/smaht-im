@@ -45,7 +45,7 @@ import {
   bindingLabel,
 } from './keybindings.js';
 
-import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ItemDetailPanel, ErrorLogPanel, Spinner } from './Panels.jsx';
+import { FolderPanel, OverviewPanel, TypePanel, ItemsPanel, ItemDetailPanel, ErrorLogPanel, Spinner, folderPanelWidth } from './Panels.jsx';
 import {
   NewFolderModal,
   RenameModal,
@@ -67,12 +67,13 @@ import {
   HistoryModal,
   PullLogModal,
   ItemDetailModal,
+  QueryDetailModal,
   NotificationBar,
 } from './Modals.jsx';
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed, pullingCount }) {
+function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed, pullingCount, hasQuery }) {
   const kb = bindings;
   const actions = [
     { key: bindingLabel(kb.newFolder),    desc: 'New',     active: true },
@@ -92,6 +93,9 @@ function Footer({ focus, bindings, pulling, viewDetail, foldersCollapsed, pullin
     { key: bindingLabel(kb.deleteFolder), desc: 'Delete',  active: focus === 'folders' },
     { key: bindingLabel(kb.sync),         desc: 'Sync',    active: focus === 'folders' || focus === 'items' },
     { key: bindingLabel(kb.setQuery),     desc: 'Track',   active: focus === 'folders' },
+    // Only shown once there's actually a tracking query to view — nothing
+    // to zoom into on a folder that's never had one set.
+    ...(hasQuery ? [{ key: bindingLabel(kb.viewQuery), desc: 'View Query', active: focus === 'folders' }] : []),
     { key: bindingLabel(kb.pullMore),     desc: 'Pull More', active: focus === 'folders' },
     { key: bindingLabel(kb.exportAnon),   desc: 'Export',  active: focus === 'folders' },
     { key: bindingLabel(kb.viewHistory),  desc: 'History', active: focus === 'folders' },
@@ -659,6 +663,11 @@ export default function App() {
       setModal('pull-more');
       return;
     }
+    if (matches(bindings.viewQuery, input, key)) {
+      if (!currentFolderQuery) { notify('No tracking query set for this folder', true); return; }
+      setModal('query-detail');
+      return;
+    }
   });
 
   // ── modal callbacks ───────────────────────────────────────────────────────
@@ -1031,9 +1040,13 @@ export default function App() {
   const NOTIF_H      = 1;
   const contentHeight = Math.max(8, appHeight - footerHeight - NOTIF_H);
 
-  const overviewH = 8;
+  const overviewH = 9; // title + 4 data rows + 2 reserved hint rows + 2 border rows
   const logH      = 6;
   const rowH      = contentHeight - overviewH - logH;
+  // OverviewPanel fills whatever width FolderPanel doesn't take (it has no
+  // width of its own in the JSX below, just flexGrow) — reuse FolderPanel's
+  // own width formula rather than hardcoding a second copy of it here.
+  const overviewWidth = Math.max(24, termWidth - folderPanelWidth(folders, foldersCollapsed, bindingLabel(bindings.toggleFolders)));
 
   // ── modal rendering ───────────────────────────────────────────────────────
 
@@ -1237,6 +1250,14 @@ export default function App() {
             editKey={bindingLabel(bindings.editFile)}
           />
         )}
+        {modal === 'query-detail' && currentFolder && (
+          <QueryDetailModal
+            folder={currentFolder}
+            env={currentFolderEnvs}
+            query={currentFolderQuery}
+            onClose={() => setModal(null)}
+          />
+        )}
       </Box>
     );
   }
@@ -1288,6 +1309,8 @@ export default function App() {
             query={currentFolderQuery}
             behind={currentFolderBehind}
             syncKey={bindingLabel(bindings.sync)}
+            viewQueryKey={bindingLabel(bindings.viewQuery)}
+            width={overviewWidth}
             height={overviewH}
           />
           <Box flexDirection="row" height={rowH}>
@@ -1338,7 +1361,7 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Footer focus={focus} bindings={bindings} pulling={isCurrentFolderPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} pullingCount={pullingFolderNames.size} />
+      <Footer focus={focus} bindings={bindings} pulling={isCurrentFolderPulling} viewDetail={viewDetail} foldersCollapsed={foldersCollapsed} pullingCount={pullingFolderNames.size} hasQuery={!!currentFolderQuery} />
     </Box>
   );
 }

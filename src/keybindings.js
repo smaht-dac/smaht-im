@@ -30,6 +30,7 @@ export const DEFAULT_BINDINGS = {
   selectAll:    { key: 'a',      ctrl: true,  label: 'Select all items' },
   sync:         { key: 'f',      ctrl: false, label: 'Sync from portal (context-aware)' },
   setQuery:     { key: 't',      ctrl: false, label: 'Set tracking query' },
+  viewQuery:    { key: 'Q',      ctrl: false, label: 'View full tracking query' },
   exportAnon:   { key: 'e',      ctrl: false, label: 'Export de-identified copy' },
   expandLog:    { key: 'L',      ctrl: false, label: 'Expand error log' },
   viewFullLog:  { key: 'F',      ctrl: false, label: 'View full log file' },
