@@ -535,6 +535,32 @@ export function HistoryModal({ folder, backups, onRestore, onCancel }) {
   );
 }
 
+// ── QueryDetailModal ──────────────────────────────────────────────────────────
+// Overview truncates a long tracking query to fit its row — this shows the
+// untruncated text, wrapped across as many lines as it needs instead of
+// clipped to one.
+
+export function QueryDetailModal({ folder, env, query, onClose }) {
+  useInput((input, key) => {
+    if (key.escape || input === 'q') onClose();
+  });
+
+  const label = folderLabel(folder.name);
+
+  return (
+    <Dialog title={`Query — ${label}`} titleColor="cyan" width={80}>
+      {env && env.length > 0 && (
+        <>
+          <Text color="gray">Env(s): <Text color="white">{env.join(', ')}</Text></Text>
+          <Box height={1} />
+        </>
+      )}
+      <Text color="white">{query || '—'}</Text>
+      <ButtonBar buttons={[{ key: 'Esc / q', label: 'Close', color: 'cyan' }]} />
+    </Dialog>
+  );
+}
+
 // ── HelpModal ─────────────────────────────────────────────────────────────────
 
 function buildHelpRows(bindings) {
@@ -588,6 +614,7 @@ function buildHelpRows(bindings) {
     ['Remote tracking', ''],
     [b('sync') + ' (folders)',            'Sync folder — re-pull from portal (backs up current state first)'],
     [b('setQuery'),                       'Set tracking query for selected folder'],
+    [b('viewQuery'),                      'View the selected folder\'s full tracking query (Overview truncates long ones)'],
     [b('pullMore'),                       'Pull more into folder via one or more queries run in order (tracking unchanged, no backup)'],
     ['', ''],
     ['Sync results & recovery', ''],

@@ -71,6 +71,28 @@ function remoteIndicator(rs) {
 // strip, purely visual breathing room, not overhead needed to fit anything.
 const FOLDERS_COLLAPSED_PAD_X = 1;
 
+/**
+ * The width FolderPanel will render at, exported so callers sizing a
+ * sibling (OverviewPanel, in App.jsx) against the terminal's remaining
+ * width don't have to duplicate this formula and risk it drifting out of
+ * sync with the actual layout.
+ */
+export function folderPanelWidth(folders, collapsed, toggleKey) {
+  if (collapsed) {
+    const bracketedKey = `[${toggleKey || '?'}]`;
+    return 2 /* border, one column each side */
+      + FOLDERS_COLLAPSED_PAD_X * 2
+      + bracketedKey.length;
+  }
+  // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
+  // Overhead: border(2) + paddingX(2) + cursor(2) + multiselect(2) + active(2) + count(8) + remote(1) + age(4) = 23
+  const DATE_W   = 4;
+  const REMOTE_W = 1; // indicator is always a single glyph: ~ ? ! ✓ ↓
+  const overhead = 22 + DATE_W + REMOTE_W;
+  const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
+  return Math.min(100, Math.max(36, longestShortName + overhead));
+}
+
 export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused, remoteStatus, pullingFolderNames, selectedNames, collapsed = false, toggleKey }) {
 
   useInput((input, key) => {
@@ -103,9 +125,7 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
   // focus actually is.
   if (collapsed) {
     const bracketedKey = `[${toggleKey || '?'}]`;
-    const collapsedWidth = 2 /* border, one column each side */
-      + FOLDERS_COLLAPSED_PAD_X * 2
-      + bracketedKey.length;
+    const collapsedWidth = folderPanelWidth(folders, true, toggleKey);
     return (
       <Box
         width={collapsedWidth}
@@ -125,13 +145,11 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
     );
   }
 
-  // Dynamic width: fit longest branch name + count + right-aligned remote indicator + age
   // Overhead: border(2) + paddingX(2) + cursor(2) + multiselect(2) + active(2) + count(8) + remote(1) + age(4) = 23
   const DATE_W   = 4;
   const REMOTE_W = 1; // indicator is always a single glyph: ~ ? ! ✓ ↓
-  const overhead  = 22 + DATE_W + REMOTE_W;
-  const longestShortName = folders.reduce((max, f) => Math.max(max, folderLabel(f.name).length), 0);
-  const panelWidth = Math.min(100, Math.max(36, longestShortName + overhead));
+  const overhead = 22 + DATE_W + REMOTE_W;
+  const panelWidth = folderPanelWidth(folders, false, toggleKey);
   const nameWidth  = panelWidth - overhead;
 
   const innerHeight = Math.max(1, height - 2); // subtract border rows
@@ -206,22 +224,32 @@ export function FolderPanel({ folders, selectedIdx, onSelect, height, isFocused,
 // ── OverviewPanel ─────────────────────────────────────────────────────────────
 
 const OVERVIEW_LABEL_WIDTH = 13;
+const OVERVIEW_BORDER_W    = 2; // single border, left + right
+const OVERVIEW_PAD_X       = 2; // paddingX on the content Box, each side
 
 function OverviewRow({ label, value }) {
   return (
     <Box>
-      <Text dimColor>{label.padEnd(OVERVIEW_LABEL_WIDTH)}</Text>
-      <Text dimColor>{value}</Text>
+      <Text dimColor wrap="truncate-end">{label.padEnd(OVERVIEW_LABEL_WIDTH)}</Text>
+      <Text dimColor wrap="truncate-end">{value}</Text>
     </Box>
   );
 }
 
-export function OverviewPanel({ folder, envs, query, behind, syncKey, height }) {
+export function OverviewPanel({ folder, envs, query, behind, syncKey, viewQueryKey, width = 80, height }) {
   const label       = folder ? folderLabel(folder.name) : null;
   const lastUpdated = fmtFullDate(folder?.lastUpdated ?? null);
   const items       = folder ? String(folder.totalItems) : '—';
   const envsText    = envs && envs.length ? envs.join(', ') : '—';
-  const queryText   = query || '—';
+  // Queries are free-form portal search strings (often several chained
+  // &field=/&type= params) and can easily run past this panel's width —
+  // cap what's shown here to the row's actual available space and point at
+  // viewQueryKey for the untruncated text instead of letting it overflow
+  // the border like every other row's wrap="truncate-end" already does.
+  const queryMaxLen    = Math.max(4, width - OVERVIEW_BORDER_W - OVERVIEW_PAD_X * 2 - OVERVIEW_LABEL_WIDTH);
+  const rawQuery       = query || '—';
+  const queryText      = trunc(rawQuery, queryMaxLen);
+  const queryTruncated = queryText !== rawQuery;
   const missing     = behind > 0
     ? `This folder is missing ${behind} insert${behind !== 1 ? 's' : ''} available on the live portal — press ${syncKey} to pull ${behind !== 1 ? 'them' : 'it'} down.`
     : '';
@@ -242,6 +270,12 @@ export function OverviewPanel({ folder, envs, query, behind, syncKey, height }) 
         <OverviewRow label="Items" value={items} />
         <OverviewRow label="Env(s)" value={envsText} />
         <OverviewRow label="Query" value={queryText} />
+        {/* Always rendered, blank when not truncated — a fixed row like
+            `missing` below, not a conditional one, so this panel's fixed
+            `height` never has to account for a variable number of rows. */}
+        <Box paddingLeft={OVERVIEW_LABEL_WIDTH}>
+          <Text color="gray" wrap="truncate-end">{queryTruncated ? `press ${viewQueryKey} to view the full query` : ''}</Text>
+        </Box>
         <Box>
           <Text color="yellow">{missing}</Text>
         </Box>

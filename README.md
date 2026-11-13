@@ -195,6 +195,7 @@ flight, regardless of which panel is focused.
 | `e` | Folders | **Export** a de-identified copy to `~/smaht-im-exports/` - reduces identifiability, does not make the result safe to share (see [De-identified export](#de-identified-export)) |
 | `f` | Folders | **Sync** - re-run this folder's tracking query against the portal, merging in anything new. Streams live output; shows a diff if anything actually changed |
 | `t` | Folders | **Set tracking query** - pick an env + query for this folder to sync against (`f`) and check staleness with |
+| `Q` | Folders | **View query** - show this folder's full tracking query; the Overview panel truncates long ones to fit |
 | `A` | Folders | **Pull more** - queue one or more extra queries to pull into this folder without touching its stored tracking query |
 | `p` | Folders | **View pull output** - full scrollable log of the current/last pull for the highlighted folder (shown only while/just after one has run) |
 | `x` | Folders | **Cancel** an in-progress pull/sync for the highlighted folder |
@@ -286,6 +287,7 @@ Default keybindings:
 | Select all | `^A` (ctrl+a) |
 | Sync from portal | `f` |
 | Set tracking query | `t` |
+| View full tracking query | `Q` |
 | Pull more (new query) | `A` |
 | View pull/sync output | `p` |
 | Cancel pull/sync | `x` |
