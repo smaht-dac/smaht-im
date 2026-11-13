@@ -359,7 +359,7 @@ export function MoveModal({ items, srcFolder, typeName, destinations, linkedPrev
 
   return (
     <Dialog
-      title={`↗  Move ${items.length} item${items.length !== 1 ? 's' : ''} from ${folderLabel(srcFolder)}/${typeName}.json`}
+      title={`↗  Move ${items.length} item${items.length !== 1 ? 's' : ''} from ${folderLabel(srcFolder)}/${typeName}`}
       titleColor="yellow"
       width={70}
     >

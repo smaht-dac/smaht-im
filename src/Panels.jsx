@@ -261,10 +261,10 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
     if (key.downArrow || input === 'j') onSelect(Math.min(types.length - 1, selectedIdx + 1));
   });
 
-  // Dynamic width: fit the longest "name.json [count]" row, clamped to a sane range
+  // Dynamic width: fit the longest "name [count]" row, clamped to a sane range
   // so this panel never stretches to fill the row the way it did when it was flexGrow.
   const overhead = 2 /* border */ + 2 /* paddingX */ + 2 /* cursor */ + 7 /* " [999]" */;
-  const longestName = types.reduce((max, t) => Math.max(max, (t.name + '.json').length), 6);
+  const longestName = types.reduce((max, t) => Math.max(max, t.name.length), 6);
   const nameWidth  = Math.min(30, longestName);
   const panelWidth = Math.max(24, Math.min(44, nameWidth + overhead));
 
@@ -307,7 +307,7 @@ export function TypePanel({ folder, selectedIdx, onSelect, height, isFocused }) 
               color={isSelected && isFocused ? 'green' : isSelected ? 'white' : 'gray'}
             >
               {isSelected ? '▶ ' : '  '}
-              {trunc(t.name + '.json', 30)}
+              {trunc(t.name, 30)}
             </Text>
             <Text color={t.count === 0 ? 'red' : 'gray'}> [{t.count}]</Text>
           </Box>
@@ -352,7 +352,7 @@ export function ItemsPanel({
   const selCount = selectedUuids.size;
 
   const titleSuffix = selCount > 0 ? ` — ${selCount} selected` : '';
-  const title = itype ? ` Items in ${trunc(itype.name, 20)}.json${titleSuffix} ` : ' Items ';
+  const title = itype ? ` Items in ${trunc(itype.name, 20)}${titleSuffix} ` : ' Items ';
 
   return (
     <Box

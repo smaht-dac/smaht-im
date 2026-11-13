@@ -156,12 +156,12 @@ A lazygit-inspired full-terminal UI for browsing and managing all
 ```
 ┌─ SMaHT Inserts Manager ─────────────────────────────────────────────────────────┐
 │ ┌─ Folders ──────────────────────┐ ┌─ Types in temp-local-inserts-devtest ──────┐│
-│ │ ● temp-local-inserts  [27]     │ │  aligned_reads.json  [20]                  ││
-│ │   temp-local-inserts-devtest   │ │  analyte.json         [4]                  ││
-│ │     [48]                       │ │  donor.json           [4]                  ││
-│ │   temp-local-inserts-staging   │ │  output_file.json    [12]                  ││
+│ │ ● temp-local-inserts  [27]     │ │  aligned_reads  [20]                       ││
+│ │   temp-local-inserts-devtest   │ │  analyte         [4]                       ││
+│ │     [48]                       │ │  donor           [4]                       ││
+│ │   temp-local-inserts-staging   │ │  output_file    [12]                       ││
 │ │     [12]                       │ └────────────────────────────────────────────┘│
-│ │   temp-local-inserts-test  [5] │ ┌─ Items in donor.json ───────────────────────┐│
+│ │   temp-local-inserts-test  [5] │ ┌─ Items in donor ───────────────────────────┐│
 │ │   temp-local-inserts-users [3] │ │ ✓  UUID                ID / Accession       ││
 │ │                                │ │    06c2197d-8cbc…  BCM1_DONOR_P1740         ││
 │ │                                │ │ ●  67ecc30b-3b71…  BCM1_DONOR_P5246  ←sel  ││

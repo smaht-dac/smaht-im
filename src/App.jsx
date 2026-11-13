@@ -570,7 +570,7 @@ export default function App() {
           // array), same reasoning as folder-copy matching the folder shape.
           const payload = currentType.items.map(i => i.data);
           copyToClipboard(JSON.stringify(payload, null, 2));
-          notify(`Copied ${payload.length} item(s) from '${currentType.name}.json' to clipboard`);
+          notify(`Copied ${payload.length} item(s) from '${currentType.name}' to clipboard`);
         } else {
           notify('Select a folder, type, or item(s) to copy', true);
         }
@@ -879,7 +879,7 @@ export default function App() {
     try {
       const result = editTypeFile(folderName, typeName);
       if (result.edited) {
-        notify(`Saved edits to '${typeName}.json' in '${folderLabel(folderName)}'`);
+        notify(`Saved edits to '${typeName}' in '${folderLabel(folderName)}'`);
       } else {
         notify(
           `Edit not applied: ${result.error} (press ${bindingLabel(bindings.viewHistory)} to restore the pre-edit backup if needed)`,
